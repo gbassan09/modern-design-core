@@ -1,12 +1,35 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import { useState } from "react";
+import BottomNav from "@/components/BottomNav";
+import DashboardScreen from "@/components/screens/DashboardScreen";
+import InvoicesScreen from "@/components/screens/InvoicesScreen";
+import NewExpenseScreen from "@/components/screens/NewExpenseScreen";
+import HistoryScreen from "@/components/screens/HistoryScreen";
+import ProfileScreen from "@/components/screens/ProfileScreen";
 
 const Index = () => {
+  const [activeTab, setActiveTab] = useState("home");
+
+  const renderScreen = () => {
+    switch (activeTab) {
+      case "home":
+        return <DashboardScreen />;
+      case "invoices":
+        return <InvoicesScreen />;
+      case "new":
+        return <NewExpenseScreen />;
+      case "history":
+        return <HistoryScreen />;
+      case "profile":
+        return <ProfileScreen />;
+      default:
+        return <DashboardScreen />;
+    }
+  };
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="mb-4 text-4xl font-bold">Welcome to Your Blank App</h1>
-        <p className="text-xl text-muted-foreground">Start building your amazing project here!</p>
-      </div>
+    <div className="min-h-screen">
+      {renderScreen()}
+      <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
     </div>
   );
 };

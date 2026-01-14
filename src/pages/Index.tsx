@@ -27,8 +27,10 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen">
-      {renderScreen()}
+    <div className="min-h-screen flex flex-col items-center">
+      <div className="w-full max-w-md">
+        {renderScreen()}
+      </div>
       <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
     </div>
   );

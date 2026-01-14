@@ -90,7 +90,7 @@ const HistoryScreen = () => {
   };
 
   return (
-    <div className="min-h-screen px-4 pb-24 pt-6">
+    <div className="min-h-screen px-4 pb-24 pt-6 mx-auto max-w-md">
       {/* Header */}
       <header className="mb-6">
         <h1 className="text-2xl font-bold text-white">Histórico</h1>

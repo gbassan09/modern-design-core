@@ -11,7 +11,7 @@ const NewExpenseScreen = () => {
   ];
 
   return (
-    <div className="min-h-screen px-4 pb-24 pt-6 mx-auto max-w-md">
+    <div className="min-h-screen px-4 pb-24 pt-6 w-full">
       {/* Header */}
       <header className="mb-6">
         <h1 className="text-2xl font-bold text-white">Nova Despesa</h1>

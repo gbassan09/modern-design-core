@@ -41,7 +41,7 @@ const DashboardScreen = () => {
   ];
 
   return (
-    <div className="min-h-screen px-4 pb-24 pt-6 mx-auto max-w-md">
+    <div className="min-h-screen px-4 pb-24 pt-6 w-full">
       {/* Header */}
       <header className="mb-6 flex items-center justify-between">
         <div>

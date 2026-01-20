@@ -46,7 +46,7 @@ const DashboardScreen = () => {
       <header className="mb-6 flex items-center justify-between">
         <div>
           <p className="text-sm text-white/60">Bem-vindo de volta,</p>
-          <h1 className="text-2xl font-bold text-white">João Silva</h1>
+          <h1 className="text-2xl font-bold text-white">João</h1>
         </div>
         <div className="glass-card flex h-12 w-12 items-center justify-center rounded-full p-0">
           <span className="text-lg font-semibold">JS</span>

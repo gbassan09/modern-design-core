@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { 
   Users, 
   FileText, 
@@ -13,35 +14,111 @@ import {
   DollarSign,
   Building2,
   BarChart3,
-  Shield
+  Shield,
+  Loader2,
+  LogOut
 } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { useAdminData } from "@/hooks/useAdminData";
+import { useInvoices, Invoice } from "@/hooks/useInvoices";
+import { useToast } from "@/hooks/use-toast";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 const Admin = () => {
   const [activeSection, setActiveSection] = useState("dashboard");
+  const [rejectionReason, setRejectionReason] = useState("");
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  
+  const { isAdmin, isLoading: authLoading, signOut, profile } = useAuth();
+  const { users, stats, isLoading: adminLoading, toggleUserRole } = useAdminData();
+  const { invoices, isLoading: invoicesLoading, updateInvoiceStatus, refetch } = useInvoices("pending");
+  const { toast } = useToast();
+  const navigate = useNavigate();
 
-  const stats = [
-    { label: "Usuários Ativos", value: "248", icon: Users, trend: "+12%", color: "from-blue-500 to-cyan-500" },
-    { label: "Despesas Pendentes", value: "67", icon: Clock, trend: "-8%", color: "from-amber-500 to-orange-500" },
-    { label: "Total Aprovado", value: "R$ 284.500", icon: CheckCircle2, trend: "+23%", color: "from-emerald-500 to-green-500" },
-    { label: "Empresas", value: "12", icon: Building2, trend: "+2", color: "from-purple-500 to-pink-500" },
-  ];
+  useEffect(() => {
+    if (!authLoading && !isAdmin) {
+      navigate("/");
+    }
+  }, [isAdmin, authLoading, navigate]);
 
-  const pendingApprovals = [
-    { id: 1, user: "Carlos Mendes", department: "Marketing", value: "R$ 1.250,00", type: "Viagem", status: "pending" },
-    { id: 2, user: "Ana Paula", department: "Vendas", value: "R$ 890,00", type: "Hospedagem", status: "pending" },
-    { id: 3, user: "Roberto Lima", department: "TI", value: "R$ 2.100,00", type: "Equipamento", status: "pending" },
-    { id: 4, user: "Mariana Costa", department: "RH", value: "R$ 450,00", type: "Alimentação", status: "pending" },
-  ];
+  const handleApprove = async (invoiceId: string) => {
+    const { error } = await updateInvoiceStatus(invoiceId, "approved");
+    if (error) {
+      toast({
+        title: "Erro",
+        description: "Não foi possível aprovar a fatura.",
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Sucesso",
+        description: "Fatura aprovada com sucesso.",
+      });
+      refetch();
+    }
+  };
+
+  const handleReject = async (invoiceId: string) => {
+    if (!rejectionReason) {
+      toast({
+        title: "Erro",
+        description: "Informe o motivo da rejeição.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const { error } = await updateInvoiceStatus(invoiceId, "rejected", rejectionReason);
+    if (error) {
+      toast({
+        title: "Erro",
+        description: "Não foi possível rejeitar a fatura.",
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Fatura rejeitada",
+        description: "A fatura foi rejeitada.",
+      });
+      setRejectingId(null);
+      setRejectionReason("");
+      refetch();
+    }
+  };
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    }).format(value);
+  };
 
   const menuItems = [
     { id: "dashboard", label: "Dashboard", icon: BarChart3 },
     { id: "users", label: "Usuários", icon: Users },
-    { id: "expenses", label: "Despesas", icon: FileText },
-    { id: "reports", label: "Relatórios", icon: TrendingUp },
-    { id: "companies", label: "Empresas", icon: Building2 },
-    { id: "policies", label: "Políticas", icon: Shield },
+    { id: "expenses", label: "Aprovações", icon: FileText },
     { id: "settings", label: "Configurações", icon: Settings },
   ];
+
+  const statCards = [
+    { label: "Usuários Ativos", value: stats.totalUsers.toString(), icon: Users, trend: "+12%", color: "from-blue-500 to-cyan-500" },
+    { label: "Despesas Pendentes", value: stats.pendingInvoices.toString(), icon: Clock, trend: "-8%", color: "from-amber-500 to-orange-500" },
+    { label: "Total Aprovado", value: formatCurrency(stats.approvedTotal), icon: CheckCircle2, trend: "+23%", color: "from-emerald-500 to-green-500" },
+    { label: "Rejeitadas", value: stats.rejectedCount.toString(), icon: XCircle, trend: "", color: "from-red-500 to-pink-500" },
+  ];
+
+  if (authLoading || adminLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-12 w-12 text-primary animate-spin" />
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen flex">
@@ -73,6 +150,16 @@ const Admin = () => {
             </button>
           ))}
         </nav>
+
+        <div className="mt-auto pt-8">
+          <button
+            onClick={signOut}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left text-white/70 hover:bg-white/5 hover:text-white transition-all"
+          >
+            <LogOut className="w-5 h-5" />
+            <span className="font-medium">Sair</span>
+          </button>
+        </div>
       </aside>
 
       {/* Main Content */}
@@ -80,8 +167,13 @@ const Admin = () => {
         {/* Header */}
         <header className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-2xl font-bold text-white">Dashboard Administrativo</h1>
-            <p className="text-white/60">Bem-vindo, Administrador</p>
+            <h1 className="text-2xl font-bold text-white">
+              {activeSection === "dashboard" && "Dashboard Administrativo"}
+              {activeSection === "users" && "Gerenciar Usuários"}
+              {activeSection === "expenses" && "Aprovações Pendentes"}
+              {activeSection === "settings" && "Configurações"}
+            </h1>
+            <p className="text-white/60">Bem-vindo, {profile?.full_name || "Administrador"}</p>
           </div>
           <div className="flex items-center gap-4">
             <div className="relative">
@@ -94,118 +186,236 @@ const Admin = () => {
             </div>
             <button className="relative p-2 glass-card rounded-xl hover:bg-white/10 transition-colors">
               <Bell className="w-5 h-5 text-white" />
-              <span className="absolute -top-1 -right-1 w-5 h-5 bg-destructive rounded-full text-xs flex items-center justify-center text-white">
-                5
-              </span>
+              {stats.pendingInvoices > 0 && (
+                <span className="absolute -top-1 -right-1 w-5 h-5 bg-destructive rounded-full text-xs flex items-center justify-center text-white">
+                  {stats.pendingInvoices}
+                </span>
+              )}
             </button>
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white font-semibold">
-              AD
+              {profile?.full_name?.charAt(0) || "A"}
             </div>
           </div>
         </header>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          {stats.map((stat, index) => (
-            <div key={index} className="glass-card">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-white/60 text-sm">{stat.label}</p>
-                  <p className="text-2xl font-bold text-white mt-1">{stat.value}</p>
-                  <span className="text-xs text-success mt-1 inline-block">{stat.trend}</span>
-                </div>
-                <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${stat.color} flex items-center justify-center`}>
-                  <stat.icon className="w-6 h-6 text-white" />
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Pending Approvals */}
-          <div className="lg:col-span-2 glass-card">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-white">Aprovações Pendentes</h2>
-              <button className="text-sm text-primary hover:text-primary/80 transition-colors flex items-center gap-1">
-                Ver todas <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="space-y-3">
-              {pendingApprovals.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex items-center justify-between p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/30 to-accent/30 flex items-center justify-center text-white font-medium">
-                      {item.user.split(" ").map(n => n[0]).join("")}
-                    </div>
+        {/* Dashboard View */}
+        {activeSection === "dashboard" && (
+          <>
+            {/* Stats Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+              {statCards.map((stat, index) => (
+                <div key={index} className="glass-card">
+                  <div className="flex items-start justify-between">
                     <div>
-                      <p className="text-white font-medium">{item.user}</p>
-                      <p className="text-white/50 text-sm">{item.department} • {item.type}</p>
+                      <p className="text-white/60 text-sm">{stat.label}</p>
+                      <p className="text-2xl font-bold text-white mt-1">{stat.value}</p>
+                      {stat.trend && (
+                        <span className="text-xs text-success mt-1 inline-block">{stat.trend}</span>
+                      )}
                     </div>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <span className="text-white font-semibold">{item.value}</span>
-                    <div className="flex gap-2">
-                      <button className="p-2 rounded-lg bg-success/20 text-success hover:bg-success/30 transition-colors">
-                        <CheckCircle2 className="w-4 h-4" />
-                      </button>
-                      <button className="p-2 rounded-lg bg-destructive/20 text-destructive hover:bg-destructive/30 transition-colors">
-                        <XCircle className="w-4 h-4" />
-                      </button>
+                    <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${stat.color} flex items-center justify-center`}>
+                      <stat.icon className="w-6 h-6 text-white" />
                     </div>
                   </div>
                 </div>
               ))}
             </div>
-          </div>
 
-          {/* Quick Actions */}
+            {/* Quick Actions */}
+            <div className="glass-card">
+              <h2 className="text-lg font-semibold text-white mb-4">Ações Rápidas</h2>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <button
+                  onClick={() => setActiveSection("users")}
+                  className="flex flex-col items-center gap-2 p-4 rounded-xl bg-white/5 hover:bg-white/10 transition-colors"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
+                    <Users className="w-5 h-5 text-primary" />
+                  </div>
+                  <span className="text-sm text-white">Usuários</span>
+                </button>
+                <button
+                  onClick={() => setActiveSection("expenses")}
+                  className="flex flex-col items-center gap-2 p-4 rounded-xl bg-white/5 hover:bg-white/10 transition-colors"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-warning/20 flex items-center justify-center">
+                    <FileText className="w-5 h-5 text-warning" />
+                  </div>
+                  <span className="text-sm text-white">Aprovações</span>
+                </button>
+                <button className="flex flex-col items-center gap-2 p-4 rounded-xl bg-white/5 hover:bg-white/10 transition-colors">
+                  <div className="w-10 h-10 rounded-xl bg-success/20 flex items-center justify-center">
+                    <TrendingUp className="w-5 h-5 text-success" />
+                  </div>
+                  <span className="text-sm text-white">Relatórios</span>
+                </button>
+                <button className="flex flex-col items-center gap-2 p-4 rounded-xl bg-white/5 hover:bg-white/10 transition-colors">
+                  <div className="w-10 h-10 rounded-xl bg-accent/20 flex items-center justify-center">
+                    <Settings className="w-5 h-5 text-accent" />
+                  </div>
+                  <span className="text-sm text-white">Configurar</span>
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Users View */}
+        {activeSection === "users" && (
           <div className="glass-card">
-            <h2 className="text-lg font-semibold text-white mb-4">Ações Rápidas</h2>
+            <h2 className="text-lg font-semibold text-white mb-4">Usuários Cadastrados</h2>
             <div className="space-y-3">
-              <button className="w-full flex items-center gap-3 p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-colors text-left">
-                <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
-                  <Users className="w-5 h-5 text-primary" />
+              {users.map((user) => (
+                <div
+                  key={user.id}
+                  className="flex items-center justify-between p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/30 to-accent/30 flex items-center justify-center text-white font-medium">
+                      {user.full_name?.charAt(0) || "U"}
+                    </div>
+                    <div>
+                      <p className="text-white font-medium">{user.full_name || "Usuário"}</p>
+                      <p className="text-white/50 text-sm">{user.department || "Sem departamento"}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex gap-2">
+                      {user.roles.map((role) => (
+                        <span
+                          key={role}
+                          className={`px-2 py-1 rounded-full text-xs ${
+                            role === "admin" ? "bg-primary/20 text-primary" : "bg-white/10 text-white/60"
+                          }`}
+                        >
+                          {role}
+                        </span>
+                      ))}
+                    </div>
+                    {!user.roles.includes("admin") && (
+                      <button
+                        onClick={() => toggleUserRole(user.user_id, "admin", "add")}
+                        className="text-xs text-primary hover:underline"
+                      >
+                        Tornar Admin
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <div>
-                  <p className="text-white font-medium">Adicionar Usuário</p>
-                  <p className="text-white/50 text-sm">Cadastrar novo colaborador</p>
-                </div>
-              </button>
-              <button className="w-full flex items-center gap-3 p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-colors text-left">
-                <div className="w-10 h-10 rounded-xl bg-accent/20 flex items-center justify-center">
-                  <FileText className="w-5 h-5 text-accent" />
-                </div>
-                <div>
-                  <p className="text-white font-medium">Gerar Relatório</p>
-                  <p className="text-white/50 text-sm">Exportar dados do mês</p>
-                </div>
-              </button>
-              <button className="w-full flex items-center gap-3 p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-colors text-left">
-                <div className="w-10 h-10 rounded-xl bg-success/20 flex items-center justify-center">
-                  <DollarSign className="w-5 h-5 text-success" />
-                </div>
-                <div>
-                  <p className="text-white font-medium">Ajustar Limites</p>
-                  <p className="text-white/50 text-sm">Configurar limites de gasto</p>
-                </div>
-              </button>
-              <button className="w-full flex items-center gap-3 p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-colors text-left">
-                <div className="w-10 h-10 rounded-xl bg-warning/20 flex items-center justify-center">
-                  <Shield className="w-5 h-5 text-warning" />
-                </div>
-                <div>
-                  <p className="text-white font-medium">Políticas</p>
-                  <p className="text-white/50 text-sm">Gerenciar regras de aprovação</p>
-                </div>
-              </button>
+              ))}
             </div>
           </div>
-        </div>
+        )}
+
+        {/* Expenses/Approvals View */}
+        {activeSection === "expenses" && (
+          <div className="glass-card">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-white">Aprovações Pendentes</h2>
+              <span className="px-3 py-1 rounded-full bg-warning/20 text-warning text-sm">
+                {invoices.length} pendentes
+              </span>
+            </div>
+
+            {invoicesLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 text-primary animate-spin" />
+              </div>
+            ) : invoices.length === 0 ? (
+              <div className="text-center py-12">
+                <CheckCircle2 className="mx-auto h-12 w-12 text-success/50 mb-4" />
+                <p className="text-white/60">Nenhuma aprovação pendente</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {invoices.map((invoice) => (
+                  <div
+                    key={invoice.id}
+                    className="p-4 rounded-xl bg-white/5 hover:bg-white/10 transition-colors"
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/30 to-accent/30 flex items-center justify-center text-white font-medium">
+                          <FileText className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <p className="text-white font-medium">{invoice.supplier}</p>
+                          <p className="text-white/50 text-sm">
+                            {invoice.description || invoice.category}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-white font-semibold text-lg">
+                          {formatCurrency(invoice.total_value)}
+                        </span>
+                        <p className="text-white/40 text-xs">
+                          {invoice.invoice_date
+                            ? format(new Date(invoice.invoice_date), "dd/MM/yyyy", { locale: ptBR })
+                            : "-"}
+                        </p>
+                      </div>
+                    </div>
+
+                    {rejectingId === invoice.id ? (
+                      <div className="mt-3 space-y-2">
+                        <input
+                          type="text"
+                          placeholder="Motivo da rejeição..."
+                          value={rejectionReason}
+                          onChange={(e) => setRejectionReason(e.target.value)}
+                          className="glass-input w-full text-sm"
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleReject(invoice.id)}
+                            className="flex-1 py-2 rounded-lg bg-destructive/20 text-destructive hover:bg-destructive/30 transition-colors text-sm"
+                          >
+                            Confirmar Rejeição
+                          </button>
+                          <button
+                            onClick={() => {
+                              setRejectingId(null);
+                              setRejectionReason("");
+                            }}
+                            className="px-4 py-2 rounded-lg bg-white/10 text-white/60 hover:bg-white/20 transition-colors text-sm"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex gap-2 mt-3">
+                        <button
+                          onClick={() => handleApprove(invoice.id)}
+                          className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg bg-success/20 text-success hover:bg-success/30 transition-colors"
+                        >
+                          <CheckCircle2 className="w-4 h-4" />
+                          Aprovar
+                        </button>
+                        <button
+                          onClick={() => setRejectingId(invoice.id)}
+                          className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg bg-destructive/20 text-destructive hover:bg-destructive/30 transition-colors"
+                        >
+                          <XCircle className="w-4 h-4" />
+                          Rejeitar
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Settings View */}
+        {activeSection === "settings" && (
+          <div className="glass-card">
+            <h2 className="text-lg font-semibold text-white mb-4">Configurações</h2>
+            <p className="text-white/60">Configurações do sistema em desenvolvimento...</p>
+          </div>
+        )}
       </main>
     </div>
   );

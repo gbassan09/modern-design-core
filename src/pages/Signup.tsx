@@ -1,20 +1,81 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
-import { Eye, EyeOff, Mail, Lock, User, Building2, Sparkles } from "lucide-react";
+import { useState, useEffect } from "react";
+import { useNavigate, Link } from "react-router-dom";
+import { Eye, EyeOff, Mail, Lock, User, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 
 const Signup = () => {
   const [showPassword, setShowPassword] = useState(false);
-  const [formData, setFormData] = useState({
-    firstName: "",
-    lastName: "",
-    email: "",
-    company: "",
-    password: "",
-  });
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const { signUp, user } = useAuth();
+  const navigate = useNavigate();
+  const { toast } = useToast();
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+  useEffect(() => {
+    if (user) {
+      navigate("/");
+    }
+  }, [user, navigate]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!fullName || !email || !password || !confirmPassword) {
+      toast({
+        title: "Erro",
+        description: "Preencha todos os campos.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      toast({
+        title: "Erro",
+        description: "As senhas não coincidem.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (password.length < 6) {
+      toast({
+        title: "Erro",
+        description: "A senha deve ter pelo menos 6 caracteres.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsLoading(true);
+
+    const { error } = await signUp(email, password, fullName);
+
+    if (error) {
+      let message = "Erro ao criar conta.";
+      if (error.message.includes("already registered")) {
+        message = "Este email já está registrado.";
+      }
+
+      toast({
+        title: "Erro no cadastro",
+        description: message,
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Conta criada!",
+        description: "Verifique seu email para confirmar o cadastro.",
+      });
+      navigate("/login");
+    }
+
+    setIsLoading(false);
   };
 
   return (
@@ -36,64 +97,35 @@ const Signup = () => {
           Comece a gerenciar suas despesas hoje
         </p>
 
-        <form className="space-y-4">
-          {/* Name Row */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <label className="text-sm text-white/70">Nome</label>
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/50" />
-                <input
-                  type="text"
-                  name="firstName"
-                  value={formData.firstName}
-                  onChange={handleChange}
-                  placeholder="João"
-                  className="glass-input w-full pl-10 text-sm"
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm text-white/70">Sobrenome</label>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Full Name */}
+          <div className="space-y-2">
+            <label className="text-sm text-white/70">Nome Completo</label>
+            <div className="relative">
+              <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/50" />
               <input
                 type="text"
-                name="lastName"
-                value={formData.lastName}
-                onChange={handleChange}
-                placeholder="Silva"
-                className="glass-input w-full text-sm"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="João Silva"
+                className="glass-input w-full pl-11"
+                disabled={isLoading}
               />
             </div>
           </div>
 
           {/* Email Input */}
           <div className="space-y-2">
-            <label className="text-sm text-white/70">E-mail corporativo</label>
+            <label className="text-sm text-white/70">E-mail</label>
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/50" />
               <input
                 type="email"
-                name="email"
-                value={formData.email}
-                onChange={handleChange}
-                placeholder="seu@empresa.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="seu@email.com"
                 className="glass-input w-full pl-11"
-              />
-            </div>
-          </div>
-
-          {/* Company Input */}
-          <div className="space-y-2">
-            <label className="text-sm text-white/70">Empresa</label>
-            <div className="relative">
-              <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/50" />
-              <input
-                type="text"
-                name="company"
-                value={formData.company}
-                onChange={handleChange}
-                placeholder="Nome da empresa"
-                className="glass-input w-full pl-11"
+                disabled={isLoading}
               />
             </div>
           </div>
@@ -105,11 +137,11 @@ const Signup = () => {
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/50" />
               <input
                 type={showPassword ? "text" : "password"}
-                name="password"
-                value={formData.password}
-                onChange={handleChange}
-                placeholder="Mínimo 8 caracteres"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Mínimo 6 caracteres"
                 className="glass-input w-full pl-11 pr-11"
+                disabled={isLoading}
               />
               <button
                 type="button"
@@ -121,31 +153,30 @@ const Signup = () => {
             </div>
           </div>
 
-          {/* Terms */}
-          <div className="flex items-start gap-3">
-            <input
-              type="checkbox"
-              id="terms"
-              className="mt-1 w-4 h-4 rounded border-white/20 bg-white/10 text-primary focus:ring-primary/50"
-            />
-            <label htmlFor="terms" className="text-sm text-white/60">
-              Eu concordo com os{" "}
-              <Link to="/terms" className="text-primary hover:underline">
-                Termos de Uso
-              </Link>{" "}
-              e{" "}
-              <Link to="/privacy" className="text-primary hover:underline">
-                Política de Privacidade
-              </Link>
-            </label>
+          {/* Confirm Password */}
+          <div className="space-y-2">
+            <label className="text-sm text-white/70">Confirmar Senha</label>
+            <div className="relative">
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/50" />
+              <input
+                type={showPassword ? "text" : "password"}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Confirme sua senha"
+                className="glass-input w-full pl-11"
+                disabled={isLoading}
+              />
+            </div>
           </div>
 
           {/* Submit Button */}
-          <Link to="/" className="block">
-            <Button className="w-full gradient-btn border-0 h-12 text-base">
-              Criar conta
-            </Button>
-          </Link>
+          <Button 
+            type="submit"
+            disabled={isLoading}
+            className="w-full gradient-btn border-0 h-12 text-base"
+          >
+            {isLoading ? "Criando conta..." : "Criar conta"}
+          </Button>
         </form>
 
         {/* Login Link */}

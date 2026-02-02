@@ -14,16 +14,143 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      invoices: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          category: Database["public"]["Enums"]["expense_category"]
+          cnpj: string | null
+          created_at: string
+          description: string | null
+          due_date: string | null
+          id: string
+          image_url: string | null
+          invoice_date: string | null
+          items: Json | null
+          raw_ocr_data: Json | null
+          rejection_reason: string | null
+          status: Database["public"]["Enums"]["invoice_status"]
+          supplier: string
+          tax_value: number | null
+          total_value: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          category?: Database["public"]["Enums"]["expense_category"]
+          cnpj?: string | null
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          image_url?: string | null
+          invoice_date?: string | null
+          items?: Json | null
+          raw_ocr_data?: Json | null
+          rejection_reason?: string | null
+          status?: Database["public"]["Enums"]["invoice_status"]
+          supplier: string
+          tax_value?: number | null
+          total_value: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          category?: Database["public"]["Enums"]["expense_category"]
+          cnpj?: string | null
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          image_url?: string | null
+          invoice_date?: string | null
+          items?: Json | null
+          raw_ocr_data?: Json | null
+          rejection_reason?: string | null
+          status?: Database["public"]["Enums"]["invoice_status"]
+          supplier?: string
+          tax_value?: number | null
+          total_value?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          department: string | null
+          full_name: string | null
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          department?: string | null
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          department?: string | null
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "user"
+      expense_category:
+        | "transporte"
+        | "alimentacao"
+        | "hospedagem"
+        | "suprimentos"
+        | "tecnologia"
+        | "outros"
+      invoice_status: "pending" | "approved" | "rejected"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +277,17 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "user"],
+      expense_category: [
+        "transporte",
+        "alimentacao",
+        "hospedagem",
+        "suprimentos",
+        "tecnologia",
+        "outros",
+      ],
+      invoice_status: ["pending", "approved", "rejected"],
+    },
   },
 } as const

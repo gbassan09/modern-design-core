@@ -1,59 +1,63 @@
-import { FileText, Paperclip, ChevronRight, Filter, Search } from "lucide-react";
+import { useState } from "react";
+import { FileText, Paperclip, ChevronRight, Filter, Search, Loader2 } from "lucide-react";
+import { useInvoices, InvoiceStatus } from "@/hooks/useInvoices";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+
+const categoryLabels: Record<string, string> = {
+  transporte: "Transporte",
+  alimentacao: "Alimentação",
+  hospedagem: "Hospedagem",
+  suprimentos: "Suprimentos",
+  tecnologia: "Tecnologia",
+  outros: "Outros",
+};
+
+const statusLabels: Record<string, string> = {
+  pending: "Pendente",
+  approved: "Aprovada",
+  rejected: "Rejeitada",
+};
 
 const InvoicesScreen = () => {
-  const tabs = ["Em Aberto", "Conferidas", "Todas"];
-  const activeTab = "Em Aberto";
+  const [activeTab, setActiveTab] = useState<InvoiceStatus | "all">("pending");
+  const [searchQuery, setSearchQuery] = useState("");
+  const { invoices, isLoading } = useInvoices(activeTab);
 
-  const invoices = [
-    {
-      id: 1,
-      supplier: "Uber Brasil",
-      description: "Corridas corporativas - Dezembro",
-      value: "R$ 1.245,80",
-      date: "05/01/2025",
-      dueDate: "15/01/2025",
-      status: "pending",
-      hasAttachment: true,
-      items: 12,
-    },
-    {
-      id: 2,
-      supplier: "Amazon AWS",
-      description: "Serviços de Cloud Computing",
-      value: "R$ 3.890,00",
-      date: "03/01/2025",
-      dueDate: "10/01/2025",
-      status: "pending",
-      hasAttachment: true,
-      items: 1,
-    },
-    {
-      id: 3,
-      supplier: "Restaurante Fasano",
-      description: "Almoço executivo - Cliente ABC",
-      value: "R$ 580,00",
-      date: "02/01/2025",
-      dueDate: "02/01/2025",
-      status: "overdue",
-      hasAttachment: false,
-      items: 1,
-    },
-    {
-      id: 4,
-      supplier: "Hotel Ibis",
-      description: "Hospedagem - Viagem SP",
-      value: "R$ 890,00",
-      date: "28/12/2024",
-      dueDate: "05/01/2025",
-      status: "pending",
-      hasAttachment: true,
-      items: 2,
-    },
+  const tabs: { key: InvoiceStatus | "all"; label: string }[] = [
+    { key: "pending", label: "Em Aberto" },
+    { key: "approved", label: "Aprovadas" },
+    { key: "all", label: "Todas" },
   ];
+
+  const filteredInvoices = invoices.filter(
+    (inv) =>
+      inv.supplier.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      inv.description?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const pendingCount = invoices.filter((i) => i.status === "pending").length;
+  const pendingTotal = invoices
+    .filter((i) => i.status === "pending")
+    .reduce((sum, i) => sum + i.total_value, 0);
+  const overdueCount = invoices.filter(
+    (i) => i.status === "pending" && i.due_date && new Date(i.due_date) < new Date()
+  ).length;
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    }).format(value);
+  };
+
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return "-";
+    return format(new Date(dateString), "dd/MM/yyyy", { locale: ptBR });
+  };
 
   return (
     <div className="min-h-screen px-4 pb-24 pt-6 w-full">
-      {/* Header */}
       <header className="mb-6">
         <h1 className="text-2xl font-bold text-white">Conferência de Faturas</h1>
         <p className="text-sm text-white/60">Gerencie suas faturas corporativas</p>
@@ -66,6 +70,8 @@ const InvoicesScreen = () => {
           <input
             type="text"
             placeholder="Buscar faturas..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
             className="flex-1 bg-transparent text-sm text-white outline-none placeholder:text-white/50"
           />
         </div>
@@ -78,14 +84,15 @@ const InvoicesScreen = () => {
       <div className="glass-card mb-6 flex gap-1 p-1">
         {tabs.map((tab) => (
           <button
-            key={tab}
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
             className={`flex-1 rounded-lg py-2.5 text-sm font-medium transition-all ${
-              activeTab === tab
+              activeTab === tab.key
                 ? "bg-white/15 text-white"
                 : "text-white/50 hover:text-white/80"
             }`}
           >
-            {tab}
+            {tab.label}
           </button>
         ))}
       </div>
@@ -93,56 +100,79 @@ const InvoicesScreen = () => {
       {/* Summary */}
       <div className="mb-4 flex gap-3">
         <div className="glass-card flex-1 py-3">
-          <p className="text-2xl font-bold text-white">4</p>
+          <p className="text-2xl font-bold text-white">{pendingCount}</p>
           <p className="text-xs text-white/60">Em aberto</p>
         </div>
         <div className="glass-card flex-1 py-3">
-          <p className="text-2xl font-bold text-warning">R$ 6.6k</p>
+          <p className="text-2xl font-bold text-warning">
+            {formatCurrency(pendingTotal).replace("R$", "R$ ")}
+          </p>
           <p className="text-xs text-white/60">Total pendente</p>
         </div>
         <div className="glass-card flex-1 py-3">
-          <p className="text-2xl font-bold text-destructive">1</p>
-          <p className="text-xs text-white/60">Vencida</p>
+          <p className="text-2xl font-bold text-destructive">{overdueCount}</p>
+          <p className="text-xs text-white/60">Vencidas</p>
         </div>
       </div>
 
       {/* Invoice List */}
-      <div className="space-y-3">
-        {invoices.map((invoice) => (
-          <div
-            key={invoice.id}
-            className="glass-card flex items-center gap-3 transition-all hover:bg-white/10"
-          >
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/10">
-              <FileText className="h-6 w-6 text-primary" />
-            </div>
-            
-            <div className="flex-1">
-              <div className="flex items-center gap-2">
-                <p className="font-medium text-white">{invoice.supplier}</p>
-                {invoice.hasAttachment && (
-                  <Paperclip className="h-3 w-3 text-white/40" />
-                )}
+      {isLoading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 text-primary animate-spin" />
+        </div>
+      ) : filteredInvoices.length === 0 ? (
+        <div className="glass-card text-center py-12">
+          <FileText className="mx-auto h-12 w-12 text-white/30 mb-4" />
+          <p className="text-white/60">Nenhuma fatura encontrada</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filteredInvoices.map((invoice) => (
+            <div
+              key={invoice.id}
+              className="glass-card flex items-center gap-3 transition-all hover:bg-white/10"
+            >
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/10">
+                <FileText className="h-6 w-6 text-primary" />
               </div>
-              <p className="text-xs text-white/50">{invoice.description}</p>
-              <p className="mt-1 text-xs text-white/40">
-                {invoice.items} {invoice.items > 1 ? "itens" : "item"} • Vence {invoice.dueDate}
-              </p>
-            </div>
 
-            <div className="text-right">
-              <p className="font-semibold text-white">{invoice.value}</p>
-              <span className={`inline-block rounded-full px-2 py-0.5 text-xs ${
-                invoice.status === "overdue" ? "status-rejected" : "status-pending"
-              }`}>
-                {invoice.status === "overdue" ? "Vencida" : "Pendente"}
-              </span>
-            </div>
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <p className="font-medium text-white">{invoice.supplier}</p>
+                  {invoice.image_url && (
+                    <Paperclip className="h-3 w-3 text-white/40" />
+                  )}
+                </div>
+                <p className="text-xs text-white/50">
+                  {invoice.description || categoryLabels[invoice.category]}
+                </p>
+                <p className="mt-1 text-xs text-white/40">
+                  Vence {formatDate(invoice.due_date)}
+                </p>
+              </div>
 
-            <ChevronRight className="h-5 w-5 text-white/30" />
-          </div>
-        ))}
-      </div>
+              <div className="text-right">
+                <p className="font-semibold text-white">
+                  {formatCurrency(invoice.total_value)}
+                </p>
+                <span
+                  className={`inline-block rounded-full px-2 py-0.5 text-xs ${
+                    invoice.status === "approved"
+                      ? "status-approved"
+                      : invoice.status === "rejected"
+                      ? "status-rejected"
+                      : "status-pending"
+                  }`}
+                >
+                  {statusLabels[invoice.status]}
+                </span>
+              </div>
+
+              <ChevronRight className="h-5 w-5 text-white/30" />
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

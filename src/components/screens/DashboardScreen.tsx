@@ -3,7 +3,7 @@ import { TrendingUp, TrendingDown, Clock, CheckCircle, ArrowUpRight, Wallet, Cre
 import { useAuth } from "@/contexts/AuthContext";
 import { useInvoices } from "@/hooks/useInvoices";
 
-const DashboardScreen = () => {
+const DashboardScreen = ({ onNavigateToHistory }: { onNavigateToHistory?: () => void }) => {
   const { user, profile, isLoading: authLoading, isAdmin } = useAuth();
   const { invoices, isLoading: invoicesLoading } = useInvoices();
 
@@ -145,7 +145,7 @@ const DashboardScreen = () => {
       <div className="glass-card">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="font-semibold text-white">Últimas Despesas</h3>
-          <button className="flex items-center text-sm text-primary">
+          <button onClick={() => onNavigateToHistory?.()} className="flex items-center text-sm text-primary">
             Ver todas
             <ArrowUpRight className="ml-1 h-4 w-4" />
           </button>

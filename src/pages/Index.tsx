@@ -12,7 +12,7 @@ const Index = () => {
   const renderScreen = () => {
     switch (activeTab) {
       case "home":
-        return <DashboardScreen />;
+        return <DashboardScreen onNavigateToHistory={() => setActiveTab("history")} />;
       case "invoices":
         return <InvoicesScreen />;
       case "new":

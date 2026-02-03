@@ -1,5 +1,5 @@
 const CACHE_NAME = 'vision-scan-cache-v1';
-const PRECACHE_URLS = ['/', '/index.html', '/offline.html', '/src/main.tsx'];
+const PRECACHE_URLS = ['/', '/index.html', '/offline.html', '/manifest.webmanifest', '/icons/icon-192.svg', '/icons/icon-512.svg', '/src/main.tsx'];
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();

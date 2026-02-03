@@ -107,10 +107,6 @@ const DashboardScreen = ({ onNavigateToHistory }: { onNavigateToHistory?: () => 
         <div className="glass-card">
           <div className="mb-2 flex items-center justify-between">
             <CreditCard className="h-5 w-5 text-primary" />
-            <span className="flex items-center text-xs text-success">
-              <TrendingUp className="mr-1 h-3 w-3" />
-              12%
-            </span>
           </div>
           <p className="text-2xl font-bold text-white">{formatCurrency(monthlyTotal)}</p>
           <p className="text-xs text-white/60">Despesas do Mês</p>

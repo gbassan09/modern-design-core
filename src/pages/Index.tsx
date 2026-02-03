@@ -5,9 +5,11 @@ import InvoicesScreen from "@/components/screens/InvoicesScreen";
 import NewExpenseScreen from "@/components/screens/NewExpenseScreen";
 import HistoryScreen from "@/components/screens/HistoryScreen";
 import ProfileScreen from "@/components/screens/ProfileScreen";
+import { useAuth } from "@/contexts/AuthContext";
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState("home");
+  const { user } = useAuth();
 
   const renderScreen = () => {
     switch (activeTab) {
@@ -31,7 +33,7 @@ const Index = () => {
       <div className="w-full max-w-md">
         {renderScreen()}
       </div>
-      <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
+      {user && <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />}
     </div>
   );
 };

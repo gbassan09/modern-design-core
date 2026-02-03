@@ -16,11 +16,14 @@ import {
   BarChart3,
   Shield,
   Loader2,
-  LogOut
+  LogOut,
+  Download,
+  FileJson
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAdminData } from "@/hooks/useAdminData";
 import { useInvoices, Invoice } from "@/hooks/useInvoices";
+import { useReportGeneration } from "@/hooks/useReportGeneration";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -33,6 +36,7 @@ const Admin = () => {
   const { isAdmin, isLoading: authLoading, signOut, profile } = useAuth();
   const { users, stats, isLoading: adminLoading, toggleUserRole } = useAdminData();
   const { invoices, isLoading: invoicesLoading, updateInvoiceStatus, refetch } = useInvoices("pending");
+  const { isGenerating, downloadReportAsPDF, downloadReportAsJSON } = useReportGeneration();
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -265,44 +269,69 @@ const Admin = () => {
           <div className="glass-card">
             <h2 className="text-lg font-semibold text-white mb-4">Usuários Cadastrados</h2>
             <div className="space-y-3">
-              {users.map((user) => (
-                <div
-                  key={user.id}
-                  className="flex items-center justify-between p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/30 to-accent/30 flex items-center justify-center text-white font-medium">
-                      {user.full_name?.charAt(0) || "U"}
-                    </div>
-                    <div>
-                      <p className="text-white font-medium">{user.full_name || "Usuário"}</p>
-                      <p className="text-white/50 text-sm">{user.department || "Sem departamento"}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="flex gap-2">
-                      {user.roles.map((role) => (
-                        <span
-                          key={role}
-                          className={`px-2 py-1 rounded-full text-xs ${
-                            role === "admin" ? "bg-primary/20 text-primary" : "bg-white/10 text-white/60"
-                          }`}
-                        >
-                          {role}
-                        </span>
-                      ))}
-                    </div>
-                    {!user.roles.includes("admin") && (
-                      <button
-                        onClick={() => toggleUserRole(user.user_id, "admin", "add")}
-                        className="text-xs text-primary hover:underline"
-                      >
-                        Tornar Admin
-                      </button>
-                    )}
-                  </div>
+              {users.length === 0 ? (
+                <div className="text-center py-12">
+                  <Users className="mx-auto h-12 w-12 text-white/30 mb-4" />
+                  <p className="text-white/60">Nenhum usuário cadastrado</p>
                 </div>
-              ))}
+              ) : (
+                users.map((user) => (
+                  <div
+                    key={user.id}
+                    className="flex items-center justify-between p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/30 to-accent/30 flex items-center justify-center text-white font-medium">
+                        {user.full_name?.charAt(0) || "U"}
+                      </div>
+                      <div>
+                        <p className="text-white font-medium">{user.full_name || "Usuário"}</p>
+                        <p className="text-white/50 text-sm">{user.department || "Sem departamento"}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="flex gap-2">
+                        {user.roles.map((role) => (
+                          <span
+                            key={role}
+                            className={`px-2 py-1 rounded-full text-xs ${
+                              role === "admin" ? "bg-primary/20 text-primary" : "bg-white/10 text-white/60"
+                            }`}
+                          >
+                            {role}
+                          </span>
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => downloadReportAsPDF(user.user_id)}
+                          disabled={isGenerating}
+                          className="p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors text-white/70 hover:text-white disabled:opacity-50"
+                          title="Baixar PDF"
+                        >
+                          <Download className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => downloadReportAsJSON(user.user_id)}
+                          disabled={isGenerating}
+                          className="p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors text-white/70 hover:text-white disabled:opacity-50"
+                          title="Baixar JSON"
+                        >
+                          <FileJson className="w-4 h-4" />
+                        </button>
+                        {!user.roles.includes("admin") && (
+                          <button
+                            onClick={() => toggleUserRole(user.user_id, "admin", "add")}
+                            className="text-xs text-primary hover:underline ml-2"
+                          >
+                            Tornar Admin
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         )}

@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useOCR, OCRResult } from "@/hooks/useOCR";
 import { useInvoices } from "@/hooks/useInvoices";
 import { useToast } from "@/hooks/use-toast";
+import YoloCameraModal from "@/components/YoloCameraModal";
 
 const categories = [
   { value: "transporte", label: "Transporte" },
@@ -24,6 +25,7 @@ const NewExpenseScreen = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
   
   // Form state
   const [supplier, setSupplier] = useState("");
@@ -61,10 +63,22 @@ const NewExpenseScreen = () => {
   };
 
   const handleCameraClick = () => {
-    if (fileInputRef.current) {
-      fileInputRef.current.accept = "image/*";
-      fileInputRef.current.capture = "environment";
-      fileInputRef.current.click();
+    setIsCameraOpen(true);
+  };
+
+  const handleCameraCapture = async (imageBase64: string) => {
+    // Convert base64 to file
+    const response = await fetch(imageBase64);
+    const blob = await response.blob();
+    const file = new File([blob], `capture-${Date.now()}.jpg`, { type: "image/jpeg" });
+
+    setSelectedFile(file);
+    setPreviewUrl(imageBase64);
+
+    // Process with OCR
+    const result = await processImage(file);
+    if (result) {
+      fillFormWithOCRData(result);
     }
   };
 
@@ -150,6 +164,13 @@ const NewExpenseScreen = () => {
 
   return (
     <div className="min-h-screen px-4 pb-24 pt-6 w-full">
+      {/* YOLO Camera Modal */}
+      <YoloCameraModal
+        isOpen={isCameraOpen}
+        onClose={() => setIsCameraOpen(false)}
+        onCapture={handleCameraCapture}
+      />
+
       <input
         ref={fileInputRef}
         type="file"

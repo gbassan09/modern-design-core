@@ -85,7 +85,7 @@ const Signup = () => {
         <div className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg">
           <Sparkles className="w-7 h-7 text-white" />
         </div>
-        <h1 className="text-2xl font-bold gradient-text">ExpenseFlow</h1>
+        <h1 className="text-2xl font-bold gradient-text">XpenseFlow</h1>
       </div>
 
       {/* Signup Card */}

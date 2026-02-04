@@ -373,7 +373,7 @@ export const useReportGeneration = () => {
   ` : ''}
 
   <div class="footer">
-    <p>ExpenseFlow - Sistema de Gestão de Despesas</p>
+    <p>XpenseFlow - Sistema de Gestão de Despesas</p>
   </div>
 </body>
 </html>

@@ -139,7 +139,7 @@ const Admin = () => {
           </div>
           <div>
             <h1 className="font-bold text-white">Admin Panel</h1>
-            <p className="text-xs text-white/50">ExpenseFlow</p>
+            <p className="text-xs text-white/50">XpenseFlow</p>
           </div>
         </div>
 

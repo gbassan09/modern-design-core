@@ -52,7 +52,7 @@ const ProfileScreen = () => {
       section: "Suporte",
       items: [
         { icon: HelpCircle, label: "Central de Ajuda", description: "Dúvidas frequentes" },
-        { icon: Mail, label: "Fale Conosco", description: "suporte@expenseflow.com" },
+        { icon: Mail, label: "Fale Conosco", description: "suporte@xpenseflow.com" },
         { icon: Smartphone, label: "Versão do App", description: "v2.4.1" },
       ],
     },
@@ -188,7 +188,7 @@ const ProfileScreen = () => {
 
       {/* Version */}
       <p className="mt-6 text-center text-xs text-white/30">
-        ExpenseFlow v2.4.1 • © 2025
+        XpenseFlow v2.4.1 • © 2025
       </p>
     </div>
   );

@@ -47,7 +47,7 @@ const DashboardScreen = ({ onNavigateToHistory }: { onNavigateToHistory?: () => 
           <div className="mb-6 flex h-20 w-20 mx-auto items-center justify-center rounded-2xl bg-gradient-to-br from-primary/30 to-accent/30">
             <LogIn className="h-10 w-10 text-white" />
           </div>
-          <h2 className="text-2xl font-bold text-white mb-2">Bem-vindo ao ExpenseFlow</h2>
+          <h2 className="text-2xl font-bold text-white mb-2">Bem-vindo ao XpenseFlow</h2>
           <p className="text-white/60 mb-6">
             Faça login para gerenciar suas despesas corporativas
           </p>

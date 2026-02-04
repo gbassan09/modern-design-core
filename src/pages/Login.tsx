@@ -67,7 +67,7 @@ const Login = () => {
         <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg">
           <Sparkles className="w-8 h-8 text-white" />
         </div>
-        <h1 className="text-3xl font-bold gradient-text">ExpenseFlow</h1>
+        <h1 className="text-3xl font-bold gradient-text">XpenseFlow</h1>
         <p className="text-white/60 mt-2">Gestão inteligente de despesas</p>
       </div>
 

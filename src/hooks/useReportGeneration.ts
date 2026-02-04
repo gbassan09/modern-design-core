@@ -4,6 +4,22 @@ import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
+interface PDFStatementReport {
+  id: string;
+  period_month: number;
+  period_year: number;
+  total_value: number;
+  calculated_total: number;
+  difference: number;
+  status: string;
+  expenses: {
+    id: string;
+    description: string;
+    value: number;
+    expense_date: string | null;
+  }[];
+}
+
 interface UserReport {
   user: {
     id: string;
@@ -19,6 +35,7 @@ interface UserReport {
     invoice_date: string | null;
     description: string | null;
   }[];
+  pdfStatements: PDFStatementReport[];
   summary: {
     total: number;
     approved: number;
@@ -27,6 +44,9 @@ interface UserReport {
     totalApprovedValue: number;
     totalPendingValue: number;
     totalRejectedValue: number;
+    pdfStatementsCount: number;
+    pdfStatementsBatidas: number;
+    pdfStatementsDivergentes: number;
   };
   generated_at: string;
 }
@@ -57,9 +77,47 @@ export const useReportGeneration = () => {
 
       if (invoicesError) throw invoicesError;
 
+      // Fetch PDF statements
+      const { data: statements, error: statementsError } = await supabase
+        .from("pdf_statements")
+        .select("*")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false });
+
+      if (statementsError) throw statementsError;
+
+      // Fetch expenses for each statement
+      const pdfStatementsWithExpenses: PDFStatementReport[] = [];
+      for (const stmt of statements || []) {
+        const { data: expenses } = await supabase
+          .from("pdf_expenses")
+          .select("*")
+          .eq("statement_id", stmt.id)
+          .order("expense_date", { ascending: true });
+
+        pdfStatementsWithExpenses.push({
+          id: stmt.id,
+          period_month: stmt.period_month,
+          period_year: stmt.period_year,
+          total_value: stmt.total_value,
+          calculated_total: stmt.calculated_total,
+          difference: stmt.difference,
+          status: stmt.status,
+          expenses: (expenses || []).map((e) => ({
+            id: e.id,
+            description: e.description,
+            value: e.value,
+            expense_date: e.expense_date,
+          })),
+        });
+      }
+
       const approvedInvoices = invoices?.filter((i) => i.status === "approved") || [];
       const pendingInvoices = invoices?.filter((i) => i.status === "pending") || [];
       const rejectedInvoices = invoices?.filter((i) => i.status === "rejected") || [];
+
+      const stmtBatidas = statements?.filter((s) => s.status === "batida") || [];
+      const stmtDivergentes = statements?.filter((s) => s.status === "divergente") || [];
 
       const report: UserReport = {
         user: {
@@ -76,6 +134,7 @@ export const useReportGeneration = () => {
           invoice_date: inv.invoice_date,
           description: inv.description,
         })),
+        pdfStatements: pdfStatementsWithExpenses,
         summary: {
           total: invoices?.length || 0,
           approved: approvedInvoices.length,
@@ -84,6 +143,9 @@ export const useReportGeneration = () => {
           totalApprovedValue: approvedInvoices.reduce((sum, i) => sum + i.total_value, 0),
           totalPendingValue: pendingInvoices.reduce((sum, i) => sum + i.total_value, 0),
           totalRejectedValue: rejectedInvoices.reduce((sum, i) => sum + i.total_value, 0),
+          pdfStatementsCount: statements?.length || 0,
+          pdfStatementsBatidas: stmtBatidas.length,
+          pdfStatementsDivergentes: stmtDivergentes.length,
         },
         generated_at: new Date().toISOString(),
       };
@@ -140,6 +202,9 @@ export const useReportGeneration = () => {
       pending: "Pendente",
       approved: "Aprovada",
       rejected: "Rejeitada",
+      em_analise: "Em Análise",
+      batida: "Batida",
+      divergente: "Divergente",
     };
 
     const formatCurrency = (value: number) => {
@@ -148,6 +213,9 @@ export const useReportGeneration = () => {
         currency: "BRL",
       }).format(value);
     };
+
+    const monthNames = ["", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", 
+                        "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
     const htmlContent = `
 <!DOCTYPE html>
@@ -169,17 +237,24 @@ export const useReportGeneration = () => {
     .summary-card.approved { background: #d1fae5; border: 1px solid #10b981; }
     .summary-card.pending { background: #fef3c7; border: 1px solid #f59e0b; }
     .summary-card.rejected { background: #fee2e2; border: 1px solid #ef4444; }
+    .summary-card.batida { background: #d1fae5; border: 1px solid #10b981; }
+    .summary-card.divergente { background: #fee2e2; border: 1px solid #ef4444; }
     .summary-card h3 { font-size: 24px; margin-bottom: 4px; }
     .summary-card p { font-size: 12px; color: #666; }
-    .invoices { margin-top: 30px; }
-    .invoices h2 { color: #333; font-size: 20px; margin-bottom: 15px; }
-    table { width: 100%; border-collapse: collapse; }
+    .invoices, .statements { margin-top: 30px; }
+    .invoices h2, .statements h2 { color: #333; font-size: 20px; margin-bottom: 15px; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
     th, td { padding: 12px; text-align: left; border-bottom: 1px solid #eee; }
     th { background: #f8f9fa; font-weight: 600; color: #333; }
     .status { padding: 4px 8px; border-radius: 4px; font-size: 12px; }
-    .status.approved { background: #d1fae5; color: #065f46; }
-    .status.pending { background: #fef3c7; color: #92400e; }
-    .status.rejected { background: #fee2e2; color: #991b1b; }
+    .status.approved, .status.batida { background: #d1fae5; color: #065f46; }
+    .status.pending, .status.em_analise { background: #fef3c7; color: #92400e; }
+    .status.rejected, .status.divergente { background: #fee2e2; color: #991b1b; }
+    .statement-section { background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+    .statement-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+    .statement-header h3 { color: #333; font-size: 16px; }
+    .statement-meta { font-size: 12px; color: #666; }
+    .difference { color: #ef4444; font-weight: bold; }
     .footer { margin-top: 40px; text-align: center; color: #999; font-size: 12px; }
     @media print { body { padding: 20px; } }
   </style>
@@ -239,6 +314,63 @@ export const useReportGeneration = () => {
       </tbody>
     </table>
   </div>
+
+  ${report.pdfStatements.length > 0 ? `
+  <div class="statements">
+    <h2>Faturas PDF (${report.pdfStatements.length})</h2>
+    <div class="summary" style="margin-bottom: 20px;">
+      <div class="summary-card batida">
+        <h3>${report.summary.pdfStatementsBatidas}</h3>
+        <p>Faturas batidas</p>
+      </div>
+      <div class="summary-card divergente">
+        <h3>${report.summary.pdfStatementsDivergentes}</h3>
+        <p>Faturas divergentes</p>
+      </div>
+    </div>
+    ${report.pdfStatements
+      .map(
+        (stmt) => `
+      <div class="statement-section">
+        <div class="statement-header">
+          <h3>Fatura ${monthNames[stmt.period_month]}/${stmt.period_year}</h3>
+          <span class="status ${stmt.status}">${statusLabels[stmt.status]}</span>
+        </div>
+        <div class="statement-meta">
+          <p>Valor da fatura: ${formatCurrency(stmt.total_value)}</p>
+          <p>Total calculado: ${formatCurrency(stmt.calculated_total)}</p>
+          ${stmt.status === 'divergente' ? `<p class="difference">Diferença: ${formatCurrency(Math.abs(stmt.difference))}</p>` : ''}
+        </div>
+        ${stmt.expenses.length > 0 ? `
+        <table style="margin-top: 15px;">
+          <thead>
+            <tr>
+              <th>Descrição</th>
+              <th>Data</th>
+              <th>Valor</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${stmt.expenses
+              .map(
+                (exp) => `
+              <tr>
+                <td>${exp.description}</td>
+                <td>${exp.expense_date ? format(new Date(exp.expense_date), "dd/MM/yyyy") : "-"}</td>
+                <td>${formatCurrency(exp.value)}</td>
+              </tr>
+            `
+              )
+              .join("")}
+          </tbody>
+        </table>
+        ` : '<p style="color: #666; margin-top: 10px;">Nenhuma despesa extraída</p>'}
+      </div>
+    `
+      )
+      .join("")}
+  </div>
+  ` : ''}
 
   <div class="footer">
     <p>ExpenseFlow - Sistema de Gestão de Despesas</p>

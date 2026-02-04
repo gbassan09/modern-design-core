@@ -18,12 +18,15 @@ import {
   Loader2,
   LogOut,
   Download,
-  FileJson
+  FileJson,
+  FileUp,
+  AlertTriangle
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAdminData } from "@/hooks/useAdminData";
 import { useInvoices, Invoice } from "@/hooks/useInvoices";
 import { useReportGeneration } from "@/hooks/useReportGeneration";
+import { useAdminStatements } from "@/hooks/useAdminStatements";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -37,6 +40,7 @@ const Admin = () => {
   const { users, stats, isLoading: adminLoading, toggleUserRole } = useAdminData();
   const { invoices, isLoading: invoicesLoading, updateInvoiceStatus, refetch } = useInvoices("pending");
   const { isGenerating, downloadReportAsPDF, downloadReportAsJSON } = useReportGeneration();
+  const { statements, isLoading: statementsLoading } = useAdminStatements();
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -102,6 +106,7 @@ const Admin = () => {
     { id: "dashboard", label: "Dashboard", icon: BarChart3 },
     { id: "users", label: "Usuários", icon: Users },
     { id: "expenses", label: "Aprovações", icon: FileText },
+    { id: "statements", label: "Faturas PDF", icon: FileUp },
     { id: "settings", label: "Configurações", icon: Settings },
   ];
 
@@ -175,6 +180,7 @@ const Admin = () => {
               {activeSection === "dashboard" && "Dashboard Administrativo"}
               {activeSection === "users" && "Gerenciar Usuários"}
               {activeSection === "expenses" && "Aprovações Pendentes"}
+              {activeSection === "statements" && "Faturas PDF"}
               {activeSection === "settings" && "Configurações"}
             </h1>
             <p className="text-white/60">Bem-vindo, {profile?.full_name || "Administrador"}</p>
@@ -431,6 +437,87 @@ const Admin = () => {
                         </button>
                       </div>
                     )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* PDF Statements View */}
+        {activeSection === "statements" && (
+          <div className="glass-card">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-white">Faturas PDF dos Usuários</h2>
+              <span className="px-3 py-1 rounded-full bg-primary/20 text-primary text-sm">
+                {statements.length} faturas
+              </span>
+            </div>
+
+            {statementsLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 text-primary animate-spin" />
+              </div>
+            ) : statements.length === 0 ? (
+              <div className="text-center py-12">
+                <FileUp className="mx-auto h-12 w-12 text-white/30 mb-4" />
+                <p className="text-white/60">Nenhuma fatura PDF cadastrada</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {statements.map((stmt) => (
+                  <div
+                    key={stmt.id}
+                    className="p-4 rounded-xl bg-white/5 hover:bg-white/10 transition-colors"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/30 to-accent/30 flex items-center justify-center text-white font-medium">
+                          <FileText className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <p className="text-white font-medium">
+                            Fatura {stmt.period_month}/{stmt.period_year}
+                          </p>
+                          <p className="text-white/50 text-sm">
+                            {stmt.user_name} {stmt.user_department && `- ${stmt.user_department}`}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-white font-semibold text-lg">
+                          {formatCurrency(stmt.total_value)}
+                        </span>
+                        <p className="text-white/40 text-xs">
+                          {format(new Date(stmt.created_at), "dd/MM/yyyy", { locale: ptBR })}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between mt-3 pt-3 border-t border-white/10">
+                      <div className="flex items-center gap-4 text-sm">
+                        <span className="text-white/60">
+                          Total calculado: <span className="text-white">{formatCurrency(stmt.calculated_total)}</span>
+                        </span>
+                        {stmt.status === "divergente" && (
+                          <span className="flex items-center gap-1 text-destructive">
+                            <AlertTriangle className="w-4 h-4" />
+                            Diferença: {formatCurrency(Math.abs(stmt.difference))}
+                          </span>
+                        )}
+                      </div>
+                      <span
+                        className={`px-2 py-1 rounded-full text-xs ${
+                          stmt.status === "batida"
+                            ? "bg-success/20 text-success"
+                            : stmt.status === "divergente"
+                            ? "bg-destructive/20 text-destructive"
+                            : "bg-warning/20 text-warning"
+                        }`}
+                      >
+                        {stmt.status === "batida" ? "Batida" : stmt.status === "divergente" ? "Divergente" : "Em Análise"}
+                      </span>
+                    </div>
                   </div>
                 ))}
               </div>

@@ -80,6 +80,95 @@ export type Database = {
         }
         Relationships: []
       }
+      pdf_expenses: {
+        Row: {
+          created_at: string
+          description: string
+          expense_date: string | null
+          id: string
+          statement_id: string
+          type: string
+          updated_at: string
+          user_id: string
+          value: number
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          expense_date?: string | null
+          id?: string
+          statement_id: string
+          type?: string
+          updated_at?: string
+          user_id: string
+          value: number
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          expense_date?: string | null
+          id?: string
+          statement_id?: string
+          type?: string
+          updated_at?: string
+          user_id?: string
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pdf_expenses_statement_id_fkey"
+            columns: ["statement_id"]
+            isOneToOne: false
+            referencedRelation: "pdf_statements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pdf_statements: {
+        Row: {
+          calculated_total: number | null
+          created_at: string
+          difference: number | null
+          id: string
+          pdf_url: string | null
+          period_month: number
+          period_year: number
+          raw_pdf_data: Json | null
+          status: string
+          total_value: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          calculated_total?: number | null
+          created_at?: string
+          difference?: number | null
+          id?: string
+          pdf_url?: string | null
+          period_month: number
+          period_year: number
+          raw_pdf_data?: Json | null
+          status?: string
+          total_value: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          calculated_total?: number | null
+          created_at?: string
+          difference?: number | null
+          id?: string
+          pdf_url?: string | null
+          period_month?: number
+          period_year?: number
+          raw_pdf_data?: Json | null
+          status?: string
+          total_value?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -139,6 +228,10 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      recalculate_statement_total: {
+        Args: { statement_uuid: string }
+        Returns: undefined
       }
     }
     Enums: {

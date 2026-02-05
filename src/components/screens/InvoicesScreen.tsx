@@ -1,6 +1,5 @@
 import { useState, useRef } from "react";
-import { FileText, Paperclip, ChevronRight, Filter, Search, Loader2, Upload, CheckCircle2, AlertCircle, X, FileUp } from "lucide-react";
-import { useInvoices, InvoiceStatus } from "@/hooks/useInvoices";
+import { FileText, Loader2, FileUp, X, CheckCircle2, AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
 import { usePDFParser, ParsedStatement } from "@/hooks/usePDFParser";
 import { usePDFStatements, PDFStatement } from "@/hooks/usePDFStatements";
 import { useToast } from "@/hooks/use-toast";
@@ -10,64 +9,24 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 
-const categoryLabels: Record<string, string> = {
-  transporte: "Transporte",
-  alimentacao: "Alimentação",
-  hospedagem: "Hospedagem",
-  suprimentos: "Suprimentos",
-  tecnologia: "Tecnologia",
-  outros: "Outros",
-};
-
 const statusLabels: Record<string, string> = {
-  pending: "Pendente",
-  approved: "Aprovada",
-  rejected: "Rejeitada",
   em_analise: "Em Análise",
   batida: "Batida",
   divergente: "Divergente",
 };
 
 const InvoicesScreen = () => {
-  const [activeTab, setActiveTab] = useState<InvoiceStatus | "all" | "statements">("pending");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [showUploadModal, setShowUploadModal] = useState(false);
   const [parsedData, setParsedData] = useState<ParsedStatement | null>(null);
   const [manualPeriodMonth, setManualPeriodMonth] = useState("");
   const [manualPeriodYear, setManualPeriodYear] = useState("");
   const [manualTotalValue, setManualTotalValue] = useState("");
+  const [showExpenses, setShowExpenses] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  const { invoices, isLoading } = useInvoices(activeTab === "statements" ? "all" : activeTab);
-  const { parsePDF, isProcessing } = usePDFParser();
+  const { parsePDF, isProcessing, error: parseError } = usePDFParser();
   const { statements, isLoading: statementsLoading, createStatement, refetch: refetchStatements } = usePDFStatements();
   const { toast } = useToast();
-
-  const tabs: { key: InvoiceStatus | "all" | "statements"; label: string }[] = [
-    { key: "pending", label: "Em Aberto" },
-    { key: "approved", label: "Aprovadas" },
-    { key: "statements", label: "Faturas PDF" },
-    { key: "all", label: "Todas" },
-  ];
-
-  const filteredInvoices = invoices.filter(
-    (inv) =>
-      inv.supplier.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      inv.description?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const filteredStatements = statements.filter(
-    (stmt) =>
-      `${stmt.period_month}/${stmt.period_year}`.includes(searchQuery)
-  );
-
-  const pendingCount = invoices.filter((i) => i.status === "pending").length;
-  const pendingTotal = invoices
-    .filter((i) => i.status === "pending")
-    .reduce((sum, i) => sum + i.total_value, 0);
-  const overdueCount = invoices.filter(
-    (i) => i.status === "pending" && i.due_date && new Date(i.due_date) < new Date()
-  ).length;
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("pt-BR", {
@@ -100,7 +59,7 @@ const InvoicesScreen = () => {
       setManualPeriodMonth(result.periodMonth?.toString() || "");
       setManualPeriodYear(result.periodYear?.toString() || "");
       setManualTotalValue(result.totalValue?.toString() || "");
-      setShowUploadModal(true);
+      setShowExpenses(true);
     }
   };
 
@@ -138,6 +97,7 @@ const InvoicesScreen = () => {
       return;
     }
 
+    setIsSaving(true);
     const { statement, error } = await createStatement(
       month,
       year,
@@ -145,6 +105,7 @@ const InvoicesScreen = () => {
       parsedData.expenses,
       { rawText: parsedData.rawText }
     );
+    setIsSaving(false);
 
     if (error) {
       toast({
@@ -160,24 +121,19 @@ const InvoicesScreen = () => {
       description: `Fatura de ${month}/${year} criada com ${parsedData.expenses.length} despesas.`,
     });
 
-    setShowUploadModal(false);
+    clearForm();
+    refetchStatements();
+  };
+
+  const clearForm = () => {
     setParsedData(null);
     setManualPeriodMonth("");
     setManualPeriodYear("");
     setManualTotalValue("");
+    setShowExpenses(false);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
-    refetchStatements();
-    setActiveTab("statements");
-  };
-
-  const closeModal = () => {
-    setShowUploadModal(false);
-    setParsedData(null);
-    setManualPeriodMonth("");
-    setManualPeriodYear("");
-    setManualTotalValue("");
   };
 
   const getStatusColor = (status: string) => {
@@ -191,32 +147,28 @@ const InvoicesScreen = () => {
     }
   };
 
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case "batida":
+        return <CheckCircle2 className="h-5 w-5 text-success" />;
+      case "divergente":
+        return <AlertCircle className="h-5 w-5 text-destructive" />;
+      default:
+        return <Loader2 className="h-5 w-5 text-warning animate-spin" />;
+    }
+  };
+
+  const expensesSum = parsedData?.expenses.reduce((sum, e) => sum + e.value, 0) || 0;
+
   return (
     <div className="min-h-screen px-4 pb-24 pt-6 w-full">
       <header className="mb-6">
-        <h1 className="text-2xl font-bold text-white">Conferência de Faturas</h1>
-        <p className="text-sm text-white/60">Gerencie suas faturas corporativas</p>
+        <h1 className="text-2xl font-bold text-white">Carregar Fatura</h1>
+        <p className="text-sm text-white/60">Envie o PDF da sua fatura do cartão</p>
       </header>
 
-      {/* Search Bar */}
-      <div className="mb-4 flex gap-2">
-        <div className="glass-input flex flex-1 items-center gap-2">
-          <Search className="h-4 w-4 text-white/50" />
-          <input
-            type="text"
-            placeholder="Buscar faturas..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="flex-1 bg-transparent text-sm text-white outline-none placeholder:text-white/50"
-          />
-        </div>
-        <button className="glass-card flex h-12 w-12 items-center justify-center rounded-xl p-0">
-          <Filter className="h-5 w-5 text-white/70" />
-        </button>
-      </div>
-
-      {/* PDF Upload Button */}
-      <div className="mb-4">
+      {/* PDF Upload Area */}
+      <div className="mb-6">
         <input
           ref={fileInputRef}
           type="file"
@@ -225,192 +177,49 @@ const InvoicesScreen = () => {
           className="hidden"
           id="pdf-upload"
         />
-        <label
-          htmlFor="pdf-upload"
-          className="glass-card flex items-center justify-center gap-2 py-3 cursor-pointer hover:bg-white/10 transition-colors"
-        >
-          {isProcessing ? (
-            <>
-              <Loader2 className="h-5 w-5 text-primary animate-spin" />
-              <span className="text-white/70">Processando PDF...</span>
-            </>
-          ) : (
-            <>
-              <FileUp className="h-5 w-5 text-primary" />
-              <span className="text-white/70">Enviar Fatura em PDF</span>
-            </>
-          )}
-        </label>
-      </div>
-
-      {/* Tabs */}
-      <div className="glass-card mb-6 flex gap-1 p-1">
-        {tabs.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={`flex-1 rounded-lg py-2.5 text-sm font-medium transition-all ${
-              activeTab === tab.key
-                ? "bg-white/15 text-white"
-                : "text-white/50 hover:text-white/80"
-            }`}
+        
+        {!parsedData ? (
+          <label
+            htmlFor="pdf-upload"
+            className="glass-card-strong flex flex-col items-center justify-center py-12 cursor-pointer hover:bg-white/10 transition-colors border-2 border-dashed border-white/20"
           >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Summary */}
-      <div className="mb-4 flex gap-3">
-        <div className="glass-card flex-1 py-3">
-          <p className="text-2xl font-bold text-white">{pendingCount}</p>
-          <p className="text-xs text-white/60">Em aberto</p>
-        </div>
-        <div className="glass-card flex-1 py-3">
-          <p className="text-2xl font-bold text-warning">
-            {formatCurrency(pendingTotal).replace("R$", "R$ ")}
-          </p>
-          <p className="text-xs text-white/60">Total pendente</p>
-        </div>
-        <div className="glass-card flex-1 py-3">
-          <p className="text-2xl font-bold text-destructive">{overdueCount}</p>
-          <p className="text-xs text-white/60">Vencidas</p>
-        </div>
-      </div>
-
-      {/* Content based on active tab */}
-      {activeTab === "statements" ? (
-        // PDF Statements List
-        statementsLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 text-primary animate-spin" />
-          </div>
-        ) : filteredStatements.length === 0 ? (
-          <div className="glass-card text-center py-12">
-            <FileText className="mx-auto h-12 w-12 text-white/30 mb-4" />
-            <p className="text-white/60">Nenhuma fatura PDF cadastrada</p>
-            <p className="text-white/40 text-sm mt-2">
-              Envie um PDF de fatura para começar
-            </p>
-          </div>
+            {isProcessing ? (
+              <>
+                <Loader2 className="h-12 w-12 text-primary animate-spin mb-4" />
+                <span className="text-white/70">Processando PDF...</span>
+                <span className="text-white/40 text-sm mt-1">Extraindo dados da fatura</span>
+              </>
+            ) : (
+              <>
+                <FileUp className="h-12 w-12 text-primary mb-4" />
+                <span className="text-white font-medium">Clique para enviar PDF</span>
+                <span className="text-white/40 text-sm mt-1">ou arraste o arquivo aqui</span>
+              </>
+            )}
+          </label>
         ) : (
-          <div className="space-y-3">
-            {filteredStatements.map((stmt) => (
-              <div
-                key={stmt.id}
-                className="glass-card flex items-center gap-3 transition-all hover:bg-white/10"
-              >
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/10">
-                  <FileText className="h-6 w-6 text-primary" />
-                </div>
-
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <p className="font-medium text-white">
-                      Fatura {stmt.period_month}/{stmt.period_year}
-                    </p>
-                  </div>
-                  <p className="text-xs text-white/50">
-                    Cadastrada em {formatDate(stmt.created_at)}
-                  </p>
-                  {stmt.status === "divergente" && (
-                    <p className="text-xs text-destructive mt-1">
-                      Diferença: {formatCurrency(Math.abs(stmt.difference))}
-                    </p>
-                  )}
-                </div>
-
-                <div className="text-right">
-                  <p className="font-semibold text-white">
-                    {formatCurrency(stmt.total_value)}
-                  </p>
-                  <span className={`inline-block rounded-full px-2 py-0.5 text-xs ${getStatusColor(stmt.status)}`}>
-                    {statusLabels[stmt.status]}
-                  </span>
-                </div>
-
-                <ChevronRight className="h-5 w-5 text-white/30" />
-              </div>
-            ))}
-          </div>
-        )
-      ) : (
-        // Invoice List
-        isLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 text-primary animate-spin" />
-          </div>
-        ) : filteredInvoices.length === 0 ? (
-          <div className="glass-card text-center py-12">
-            <FileText className="mx-auto h-12 w-12 text-white/30 mb-4" />
-            <p className="text-white/60">Nenhuma fatura encontrada</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {filteredInvoices.map((invoice) => (
-              <div
-                key={invoice.id}
-                className="glass-card flex items-center gap-3 transition-all hover:bg-white/10"
-              >
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/10">
-                  <FileText className="h-6 w-6 text-primary" />
-                </div>
-
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <p className="font-medium text-white">{invoice.supplier}</p>
-                    {invoice.image_url && (
-                      <Paperclip className="h-3 w-3 text-white/40" />
-                    )}
-                  </div>
-                  <p className="text-xs text-white/50">
-                    {invoice.description || categoryLabels[invoice.category]}
-                  </p>
-                  <p className="mt-1 text-xs text-white/40">
-                    Vence {formatDate(invoice.due_date)}
-                  </p>
-                </div>
-
-                <div className="text-right">
-                  <p className="font-semibold text-white">
-                    {formatCurrency(invoice.total_value)}
-                  </p>
-                  <span
-                    className={`inline-block rounded-full px-2 py-0.5 text-xs ${
-                      invoice.status === "approved"
-                        ? "status-approved"
-                        : invoice.status === "rejected"
-                        ? "status-rejected"
-                        : "status-pending"
-                    }`}
-                  >
-                    {statusLabels[invoice.status]}
-                  </span>
-                </div>
-
-                <ChevronRight className="h-5 w-5 text-white/30" />
-              </div>
-            ))}
-          </div>
-        )
-      )}
-
-      {/* Upload Modal */}
-      {showUploadModal && parsedData && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80">
-          <div className="glass-card-strong w-full max-w-lg max-h-[90vh] overflow-y-auto">
+          /* Parsed Data Display */
+          <div className="glass-card-strong">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-white">Dados da Fatura</h2>
-              <button onClick={closeModal} className="text-white/60 hover:text-white">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/20">
+                  <FileText className="h-6 w-6 text-primary" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-white">Fatura Carregada</h2>
+                  <p className="text-sm text-white/50">Confira os dados extraídos</p>
+                </div>
+              </div>
+              <button onClick={clearForm} className="text-white/60 hover:text-white p-2">
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <div className="space-y-4">
-              {/* Period Fields */}
+            {/* Period and Total Fields */}
+            <div className="space-y-4 mb-6">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label htmlFor="month" className="text-white/70">Mês</Label>
+                  <Label htmlFor="month" className="text-white/70 text-sm">Mês</Label>
                   <Input
                     id="month"
                     type="number"
@@ -419,11 +228,11 @@ const InvoicesScreen = () => {
                     value={manualPeriodMonth}
                     onChange={(e) => setManualPeriodMonth(e.target.value)}
                     placeholder="Ex: 1"
-                    className="glass-input"
+                    className="glass-input mt-1"
                   />
                 </div>
                 <div>
-                  <Label htmlFor="year" className="text-white/70">Ano</Label>
+                  <Label htmlFor="year" className="text-white/70 text-sm">Ano</Label>
                   <Input
                     id="year"
                     type="number"
@@ -432,14 +241,13 @@ const InvoicesScreen = () => {
                     value={manualPeriodYear}
                     onChange={(e) => setManualPeriodYear(e.target.value)}
                     placeholder="Ex: 2024"
-                    className="glass-input"
+                    className="glass-input mt-1"
                   />
                 </div>
               </div>
 
-              {/* Total Value */}
               <div>
-                <Label htmlFor="total" className="text-white/70">Valor Total</Label>
+                <Label htmlFor="total" className="text-white/70 text-sm">Valor Total da Fatura</Label>
                 <Input
                   id="total"
                   type="number"
@@ -447,75 +255,142 @@ const InvoicesScreen = () => {
                   value={manualTotalValue}
                   onChange={(e) => setManualTotalValue(e.target.value)}
                   placeholder="Ex: 1234.56"
-                  className="glass-input"
+                  className="glass-input mt-1"
                 />
               </div>
+            </div>
 
-              {/* Extracted Expenses */}
-              <div>
-                <Label className="text-white/70">
+            {/* Expenses Toggle */}
+            <button
+              onClick={() => setShowExpenses(!showExpenses)}
+              className="flex items-center justify-between w-full p-3 rounded-lg bg-white/5 hover:bg-white/10 transition-colors mb-4"
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-white font-medium">
                   Despesas Extraídas ({parsedData.expenses.length})
-                </Label>
-                <div className="mt-2 max-h-48 overflow-y-auto space-y-2">
-                  {parsedData.expenses.length === 0 ? (
-                    <p className="text-white/40 text-sm">
-                      Nenhuma despesa identificada automaticamente.
-                    </p>
-                  ) : (
-                    parsedData.expenses.map((expense, index) => (
-                      <div
-                        key={index}
-                        className="flex justify-between items-center p-2 rounded-lg bg-white/5"
-                      >
-                        <div className="flex-1">
-                          <p className="text-white text-sm truncate">{expense.description}</p>
-                          <p className="text-white/40 text-xs">{expense.date || "Sem data"}</p>
-                        </div>
-                        <p className="text-white font-medium text-sm">
-                          {formatCurrency(expense.value)}
-                        </p>
+                </span>
+                <span className="text-white/50 text-sm">
+                  Total: {formatCurrency(expensesSum)}
+                </span>
+              </div>
+              {showExpenses ? (
+                <ChevronUp className="h-5 w-5 text-white/50" />
+              ) : (
+                <ChevronDown className="h-5 w-5 text-white/50" />
+              )}
+            </button>
+
+            {/* Expenses List */}
+            {showExpenses && (
+              <div className="max-h-64 overflow-y-auto space-y-2 mb-4">
+                {parsedData.expenses.length === 0 ? (
+                  <p className="text-white/40 text-sm text-center py-4">
+                    Nenhuma despesa identificada automaticamente.
+                  </p>
+                ) : (
+                  parsedData.expenses.map((expense, index) => (
+                    <div
+                      key={index}
+                      className="flex justify-between items-center p-3 rounded-lg bg-white/5"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white text-sm truncate">{expense.description}</p>
+                        <p className="text-white/40 text-xs">{expense.date || "Sem data"}</p>
                       </div>
-                    ))
-                  )}
-                </div>
+                      <p className="text-white font-medium text-sm ml-3">
+                        {formatCurrency(expense.value)}
+                      </p>
+                    </div>
+                  ))
+                )}
               </div>
+            )}
 
-              {/* Summary */}
-              <div className="p-3 rounded-lg bg-white/5">
-                <div className="flex justify-between text-sm">
-                  <span className="text-white/60">Soma das despesas:</span>
-                  <span className="text-white font-medium">
-                    {formatCurrency(parsedData.expenses.reduce((sum, e) => sum + e.value, 0))}
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm mt-1">
-                  <span className="text-white/60">Valor informado:</span>
-                  <span className="text-white font-medium">
-                    {manualTotalValue ? formatCurrency(parseFloat(manualTotalValue)) : "-"}
-                  </span>
-                </div>
+            {/* Summary */}
+            <div className="p-4 rounded-lg bg-white/5 mb-4">
+              <div className="flex justify-between text-sm mb-2">
+                <span className="text-white/60">Valor declarado:</span>
+                <span className="text-white font-medium">
+                  {manualTotalValue ? formatCurrency(parseFloat(manualTotalValue)) : "-"}
+                </span>
               </div>
-
-              {/* Actions */}
-              <div className="flex gap-3 pt-2">
-                <Button
-                  variant="outline"
-                  onClick={closeModal}
-                  className="flex-1"
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  onClick={handleSubmitStatement}
-                  className="flex-1 bg-primary hover:bg-primary/90"
-                >
-                  Cadastrar Fatura
-                </Button>
+              <div className="flex justify-between text-sm mb-2">
+                <span className="text-white/60">Soma das despesas:</span>
+                <span className="text-white font-medium">{formatCurrency(expensesSum)}</span>
+              </div>
+              <div className="flex justify-between text-sm pt-2 border-t border-white/10">
+                <span className="text-white/60">Diferença:</span>
+                <span className={`font-medium ${
+                  Math.abs((parseFloat(manualTotalValue) || 0) - expensesSum) < 0.01 
+                    ? "text-success" 
+                    : "text-warning"
+                }`}>
+                  {formatCurrency(Math.abs((parseFloat(manualTotalValue) || 0) - expensesSum))}
+                </span>
               </div>
             </div>
+
+            {/* Submit Button */}
+            <Button
+              onClick={handleSubmitStatement}
+              disabled={isSaving}
+              className="w-full gradient-btn"
+            >
+              {isSaving ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Salvando...
+                </>
+              ) : (
+                "Cadastrar Fatura"
+              )}
+            </Button>
           </div>
-        </div>
-      )}
+        )}
+      </div>
+
+      {/* Recent Statements */}
+      <div className="glass-card">
+        <h3 className="font-semibold text-white mb-4">Faturas Cadastradas</h3>
+        
+        {statementsLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-6 w-6 text-primary animate-spin" />
+          </div>
+        ) : statements.length === 0 ? (
+          <div className="text-center py-8">
+            <FileText className="mx-auto h-10 w-10 text-white/20 mb-2" />
+            <p className="text-white/40 text-sm">Nenhuma fatura cadastrada</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {statements.slice(0, 5).map((stmt) => (
+              <div
+                key={stmt.id}
+                className="flex items-center gap-3 p-3 rounded-lg bg-white/5"
+              >
+                {getStatusIcon(stmt.status)}
+                <div className="flex-1">
+                  <p className="text-white font-medium">
+                    {stmt.period_month}/{stmt.period_year}
+                  </p>
+                  <p className="text-white/40 text-xs">
+                    {formatDate(stmt.created_at)}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-white font-medium">
+                    {formatCurrency(stmt.total_value)}
+                  </p>
+                  <span className={`inline-block rounded-full px-2 py-0.5 text-xs ${getStatusColor(stmt.status)}`}>
+                    {statusLabels[stmt.status]}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

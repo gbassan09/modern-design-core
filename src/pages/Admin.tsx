@@ -20,29 +20,45 @@ import {
   Download,
   FileJson,
   FileUp,
-  AlertTriangle
+  AlertTriangle,
+  Eye,
+  AlertCircle
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAdminData } from "@/hooks/useAdminData";
 import { useInvoices, Invoice } from "@/hooks/useInvoices";
 import { useReportGeneration } from "@/hooks/useReportGeneration";
 import { useAdminStatements } from "@/hooks/useAdminStatements";
+import { useReconciliation, GlobalReconciliationReport } from "@/hooks/useReconciliation";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { UserHistoryModal } from "@/components/admin/UserHistoryModal";
+import { ReconciliationAlerts } from "@/components/admin/ReconciliationAlerts";
 
 const Admin = () => {
   const [activeSection, setActiveSection] = useState("dashboard");
   const [rejectionReason, setRejectionReason] = useState("");
   const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [selectedUserName, setSelectedUserName] = useState<string>("");
+  const [globalReport, setGlobalReport] = useState<GlobalReconciliationReport | null>(null);
   
   const { isAdmin, isLoading: authLoading, signOut, profile } = useAuth();
   const { users, stats, isLoading: adminLoading, toggleUserRole } = useAdminData();
   const { invoices, isLoading: invoicesLoading, updateInvoiceStatus, refetch } = useInvoices("pending");
   const { isGenerating, downloadReportAsPDF, downloadReportAsJSON } = useReportGeneration();
   const { statements, isLoading: statementsLoading } = useAdminStatements();
+  const { generateGlobalReport, isLoading: reconciliationLoading } = useReconciliation();
   const { toast } = useToast();
   const navigate = useNavigate();
+
+  // Load global reconciliation report when viewing dashboard
+  useEffect(() => {
+    if (activeSection === "dashboard" && isAdmin && !globalReport) {
+      generateGlobalReport().then(setGlobalReport);
+    }
+  }, [activeSection, isAdmin, globalReport, generateGlobalReport]);
 
   useEffect(() => {
     if (!authLoading && !isAdmin) {
@@ -110,11 +126,14 @@ const Admin = () => {
     { id: "settings", label: "Configurações", icon: Settings },
   ];
 
+  const alertsCount = globalReport?.totalAlerts || 0;
+  const criticalAlertsCount = globalReport?.criticalAlerts || 0;
+
   const statCards = [
     { label: "Usuários Ativos", value: stats.totalUsers.toString(), icon: Users, trend: "+12%", color: "from-blue-500 to-cyan-500" },
     { label: "Despesas Pendentes", value: stats.pendingInvoices.toString(), icon: Clock, trend: "-8%", color: "from-amber-500 to-orange-500" },
     { label: "Total Aprovado", value: formatCurrency(stats.approvedTotal), icon: CheckCircle2, trend: "+23%", color: "from-emerald-500 to-green-500" },
-    { label: "Rejeitadas", value: stats.rejectedCount.toString(), icon: XCircle, trend: "", color: "from-red-500 to-pink-500" },
+    { label: "Alertas", value: alertsCount.toString(), icon: AlertCircle, trend: criticalAlertsCount > 0 ? `${criticalAlertsCount} críticos` : "", color: criticalAlertsCount > 0 ? "from-red-500 to-pink-500" : "from-amber-500 to-orange-500" },
   ];
 
   if (authLoading || adminLoading) {
@@ -281,62 +300,78 @@ const Admin = () => {
                   <p className="text-white/60">Nenhum usuário cadastrado</p>
                 </div>
               ) : (
-                users.map((user) => (
-                  <div
-                    key={user.id}
-                    className="flex items-center justify-between p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/30 to-accent/30 flex items-center justify-center text-white font-medium">
-                        {user.full_name?.charAt(0) || "U"}
+                users.map((user) => {
+                  const userAlerts = globalReport?.users.find((u) => u.userId === user.user_id)?.alerts || [];
+                  return (
+                    <div
+                      key={user.id}
+                      className="flex items-center justify-between p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/30 to-accent/30 flex items-center justify-center text-white font-medium">
+                          {user.full_name?.charAt(0) || "U"}
+                        </div>
+                        <div>
+                          <p className="text-white font-medium">{user.full_name || "Usuário"}</p>
+                          <p className="text-white/50 text-sm">{user.department || "Sem departamento"}</p>
+                          {userAlerts.length > 0 && (
+                            <ReconciliationAlerts alerts={userAlerts} compact />
+                          )}
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-white font-medium">{user.full_name || "Usuário"}</p>
-                        <p className="text-white/50 text-sm">{user.department || "Sem departamento"}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="flex gap-2">
-                        {user.roles.map((role) => (
-                          <span
-                            key={role}
-                            className={`px-2 py-1 rounded-full text-xs ${
-                              role === "admin" ? "bg-primary/20 text-primary" : "bg-white/10 text-white/60"
-                            }`}
-                          >
-                            {role}
-                          </span>
-                        ))}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => downloadReportAsPDF(user.user_id)}
-                          disabled={isGenerating}
-                          className="p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors text-white/70 hover:text-white disabled:opacity-50"
-                          title="Baixar PDF"
-                        >
-                          <Download className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => downloadReportAsJSON(user.user_id)}
-                          disabled={isGenerating}
-                          className="p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors text-white/70 hover:text-white disabled:opacity-50"
-                          title="Baixar JSON"
-                        >
-                          <FileJson className="w-4 h-4" />
-                        </button>
-                        {!user.roles.includes("admin") && (
+                      <div className="flex items-center gap-3">
+                        <div className="flex gap-2">
+                          {user.roles.map((role) => (
+                            <span
+                              key={role}
+                              className={`px-2 py-1 rounded-full text-xs ${
+                                role === "admin" ? "bg-primary/20 text-primary" : "bg-white/10 text-white/60"
+                              }`}
+                            >
+                              {role}
+                            </span>
+                          ))}
+                        </div>
+                        <div className="flex items-center gap-2">
                           <button
-                            onClick={() => toggleUserRole(user.user_id, "admin", "add")}
-                            className="text-xs text-primary hover:underline ml-2"
+                            onClick={() => {
+                              setSelectedUserId(user.user_id);
+                              setSelectedUserName(user.full_name || "Usuário");
+                            }}
+                            className="p-2 rounded-lg bg-primary/20 hover:bg-primary/30 transition-colors text-primary"
+                            title="Ver histórico completo"
                           >
-                            Tornar Admin
+                            <Eye className="w-4 h-4" />
                           </button>
-                        )}
+                          <button
+                            onClick={() => downloadReportAsPDF(user.user_id)}
+                            disabled={isGenerating}
+                            className="p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors text-white/70 hover:text-white disabled:opacity-50"
+                            title="Baixar PDF"
+                          >
+                            <Download className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => downloadReportAsJSON(user.user_id)}
+                            disabled={isGenerating}
+                            className="p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors text-white/70 hover:text-white disabled:opacity-50"
+                            title="Baixar JSON"
+                          >
+                            <FileJson className="w-4 h-4" />
+                          </button>
+                          {!user.roles.includes("admin") && (
+                            <button
+                              onClick={() => toggleUserRole(user.user_id, "admin", "add")}
+                              className="text-xs text-primary hover:underline ml-2"
+                            >
+                              Tornar Admin
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>
@@ -531,6 +566,18 @@ const Admin = () => {
             <h2 className="text-lg font-semibold text-white mb-4">Configurações</h2>
             <p className="text-white/60">Configurações do sistema em desenvolvimento...</p>
           </div>
+        )}
+
+        {/* User History Modal */}
+        {selectedUserId && (
+          <UserHistoryModal
+            userId={selectedUserId}
+            userName={selectedUserName}
+            onClose={() => {
+              setSelectedUserId(null);
+              setSelectedUserName("");
+            }}
+          />
         )}
       </main>
     </div>

@@ -18,7 +18,7 @@ import {
   Loader2,
   LogOut,
   Download,
-  FileJson,
+  FileSpreadsheet,
   FileUp,
   AlertTriangle,
   Eye,
@@ -47,7 +47,7 @@ const Admin = () => {
   const { isAdmin, isLoading: authLoading, signOut, profile } = useAuth();
   const { users, stats, isLoading: adminLoading, toggleUserRole } = useAdminData();
   const { invoices, isLoading: invoicesLoading, updateInvoiceStatus, refetch } = useInvoices("pending");
-  const { isGenerating, downloadReportAsPDF, downloadReportAsJSON } = useReportGeneration();
+  const { isGenerating, downloadReportAsPDF, downloadReportAsCSV } = useReportGeneration();
   const { statements, isLoading: statementsLoading } = useAdminStatements();
   const { generateGlobalReport, isLoading: reconciliationLoading } = useReconciliation();
   const { toast } = useToast();
@@ -352,12 +352,12 @@ const Admin = () => {
                             <Download className="w-4 h-4" />
                           </button>
                           <button
-                            onClick={() => downloadReportAsJSON(user.user_id)}
+                            onClick={() => downloadReportAsCSV(user.user_id)}
                             disabled={isGenerating}
                             className="p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors text-white/70 hover:text-white disabled:opacity-50"
-                            title="Baixar JSON"
+                            title="Exportar para Google Sheets (CSV)"
                           >
-                            <FileJson className="w-4 h-4" />
+                            <FileSpreadsheet className="w-4 h-4" />
                           </button>
                           {!user.roles.includes("admin") && (
                             <button

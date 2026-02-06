@@ -164,23 +164,93 @@ export const useReportGeneration = () => {
     }
   };
 
-  const downloadReportAsJSON = async (userId: string) => {
+  const downloadReportAsCSV = async (userId: string) => {
     const report = await generateUserReport(userId);
     if (!report) return;
 
-    const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
+    // Create CSV headers and rows
+    const headers = ["Tipo", "Fornecedor", "Categoria", "Descrição", "Data", "Valor", "Status", "Itens"];
+    
+    const invoiceRows = report.invoices.map((inv) => {
+      const itemsText = (inv as any).items && Array.isArray((inv as any).items) 
+        ? (inv as any).items.map((item: any) => `${item.description} (${item.quantity}x R$${item.unit_price})`).join("; ")
+        : "";
+      
+      return [
+        "Nota Fiscal",
+        inv.supplier,
+        inv.category,
+        inv.description || "",
+        inv.invoice_date ? format(new Date(inv.invoice_date), "dd/MM/yyyy") : "",
+        inv.total_value.toString().replace(".", ","),
+        inv.status === "approved" ? "Aprovada" : inv.status === "pending" ? "Pendente" : "Rejeitada",
+        itemsText
+      ];
+    });
+
+    // Add PDF statements
+    const stmtRows = report.pdfStatements.flatMap((stmt) => {
+      const monthNames = ["", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", 
+                          "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+      
+      // Main statement row
+      const mainRow = [
+        "Fatura PDF",
+        `Fatura ${monthNames[stmt.period_month]}/${stmt.period_year}`,
+        "",
+        `Status: ${stmt.status === "batida" ? "Batida" : "Divergente"}`,
+        "",
+        stmt.total_value.toString().replace(".", ","),
+        stmt.status,
+        ""
+      ];
+
+      // Expense rows
+      const expenseRows = stmt.expenses.map((exp) => [
+        "Item Fatura",
+        "",
+        "",
+        exp.description,
+        exp.expense_date ? format(new Date(exp.expense_date), "dd/MM/yyyy") : "",
+        exp.value.toString().replace(".", ","),
+        "",
+        ""
+      ]);
+
+      return [mainRow, ...expenseRows];
+    });
+
+    const allRows = [headers, ...invoiceRows, ...stmtRows];
+    
+    // Convert to CSV with proper escaping
+    const csvContent = allRows
+      .map(row => 
+        row.map(cell => {
+          const cellStr = String(cell);
+          // Escape quotes and wrap in quotes if contains comma, quote, or newline
+          if (cellStr.includes(",") || cellStr.includes('"') || cellStr.includes("\n")) {
+            return `"${cellStr.replace(/"/g, '""')}"`;
+          }
+          return cellStr;
+        }).join(",")
+      )
+      .join("\n");
+
+    // Add BOM for proper Excel/Sheets UTF-8 support
+    const bom = "\uFEFF";
+    const blob = new Blob([bom + csvContent], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `relatorio-${report.user.full_name?.replace(/\s+/g, "-") || userId}-${format(new Date(), "yyyy-MM-dd")}.json`;
+    a.download = `relatorio-${report.user.full_name?.replace(/\s+/g, "-") || userId}-${format(new Date(), "yyyy-MM-dd")}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
 
     toast({
-      title: "Relatório gerado",
-      description: "O relatório foi baixado como JSON.",
+      title: "Relatório exportado",
+      description: "Arquivo CSV baixado. Importe no Google Sheets ou Excel.",
     });
   };
 
@@ -399,7 +469,7 @@ export const useReportGeneration = () => {
   return {
     isGenerating,
     generateUserReport,
-    downloadReportAsJSON,
+    downloadReportAsCSV,
     downloadReportAsPDF,
   };
 };

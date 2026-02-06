@@ -5,6 +5,7 @@ import { useOCR, OCRResult } from "@/hooks/useOCR";
 import { useInvoices } from "@/hooks/useInvoices";
 import { useToast } from "@/hooks/use-toast";
 import YoloCameraModal from "@/components/YoloCameraModal";
+import { InvoiceItemsEditor, InvoiceItem } from "@/components/InvoiceItemsEditor";
 
 const categories = [
   { value: "transporte", label: "Transporte" },
@@ -36,6 +37,7 @@ const NewExpenseScreen = () => {
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split("T")[0]);
   const [dueDate, setDueDate] = useState("");
   const [category, setCategory] = useState<string>("outros");
+  const [items, setItems] = useState<InvoiceItem[]>([]);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -127,7 +129,7 @@ const NewExpenseScreen = () => {
         invoice_date: invoiceDate || null,
         due_date: dueDate || null,
         category: category as any,
-        items: [],
+        items: items.length > 0 ? JSON.parse(JSON.stringify(items)) : null,
         image_url: imageUrl,
         raw_ocr_data: null,
       });
@@ -148,6 +150,7 @@ const NewExpenseScreen = () => {
       setInvoiceDate(new Date().toISOString().split("T")[0]);
       setDueDate("");
       setCategory("outros");
+      setItems([]);
       setSelectedFile(null);
       setPreviewUrl(null);
     } catch (error) {
@@ -375,6 +378,11 @@ const NewExpenseScreen = () => {
             rows={3}
             className="w-full resize-none bg-transparent text-white outline-none placeholder:text-white/30"
           />
+        </div>
+
+        {/* Invoice Items */}
+        <div className="glass-card">
+          <InvoiceItemsEditor items={items} onChange={setItems} />
         </div>
       </div>
 

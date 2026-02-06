@@ -4,6 +4,8 @@ import { useInvoices, InvoiceStatus } from "@/hooks/useInvoices";
 import { usePDFStatements } from "@/hooks/usePDFStatements";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { InvoiceItemsDisplay } from "@/components/InvoiceItemsDisplay";
+import { InvoiceItem } from "@/components/InvoiceItemsEditor";
 
 const categoryLabels: Record<string, string> = {
   transporte: "Transporte",
@@ -209,6 +211,12 @@ const HistoryScreen = () => {
                     <p className="mt-1 text-xs text-white/40">
                       {formatDate(invoice.invoice_date)}
                     </p>
+                    {invoice.items && Array.isArray(invoice.items) && invoice.items.length > 0 && (
+                      <InvoiceItemsDisplay 
+                        items={invoice.items as unknown as InvoiceItem[]} 
+                        compact 
+                      />
+                    )}
                   </div>
 
                   <div className="text-right">

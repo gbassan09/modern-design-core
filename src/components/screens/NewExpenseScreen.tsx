@@ -62,6 +62,17 @@ const NewExpenseScreen = () => {
     if (data.invoice_date) setInvoiceDate(data.invoice_date);
     if (data.due_date) setDueDate(data.due_date);
     if (data.category) setCategory(data.category);
+    
+    // Auto-fill items from OCR
+    if (data.items && Array.isArray(data.items) && data.items.length > 0) {
+      const convertedItems: InvoiceItem[] = data.items.map((item) => ({
+        description: item.name || "Item",
+        quantity: item.quantity || 1,
+        unit_price: item.unit_price || 0,
+        total: item.total || (item.quantity || 1) * (item.unit_price || 0),
+      }));
+      setItems(convertedItems);
+    }
   };
 
   const handleCameraClick = () => {

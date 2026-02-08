@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -6,6 +6,13 @@ import { Tables, Enums } from "@/integrations/supabase/types";
 
 export type Invoice = Tables<"invoices">;
 export type InvoiceStatus = Enums<"invoice_status">;
+
+export interface InvoiceItemInput {
+  description: string;
+  quantity: number;
+  unit_price: number;
+  total: number;
+}
 
 export const useInvoices = (statusFilter?: InvoiceStatus | "all") => {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -47,11 +54,15 @@ export const useInvoices = (statusFilter?: InvoiceStatus | "all") => {
     }
   };
 
-  const createInvoice = async (invoiceData: Omit<Tables<"invoices">, "id" | "created_at" | "updated_at" | "user_id" | "approved_at" | "approved_by" | "rejection_reason" | "status">) => {
+  const createInvoice = async (
+    invoiceData: Omit<Tables<"invoices">, "id" | "created_at" | "updated_at" | "user_id" | "approved_at" | "approved_by" | "rejection_reason" | "status">,
+    items?: InvoiceItemInput[]
+  ) => {
     if (!session?.user) return { error: new Error("Not authenticated") };
 
     try {
-      const { data, error } = await supabase
+      // Create the invoice
+      const { data: invoice, error: invoiceError } = await supabase
         .from("invoices")
         .insert({
           ...invoiceData,
@@ -60,15 +71,53 @@ export const useInvoices = (statusFilter?: InvoiceStatus | "all") => {
         .select()
         .single();
 
-      if (error) throw error;
+      if (invoiceError) throw invoiceError;
 
-      setInvoices((prev) => [data, ...prev]);
-      return { data, error: null };
+      // Create individual items if provided
+      if (items && items.length > 0) {
+        const itemsToInsert = items.map((item) => ({
+          invoice_id: invoice.id,
+          user_id: session.user.id,
+          description: item.description,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          total: item.total,
+        }));
+
+        const { error: itemsError } = await supabase
+          .from("invoice_items")
+          .insert(itemsToInsert);
+
+        if (itemsError) {
+          console.error("Error inserting invoice items:", itemsError);
+          // Don't throw - invoice was created successfully
+        }
+      }
+
+      setInvoices((prev) => [invoice, ...prev]);
+      return { data: invoice, error: null };
     } catch (error) {
       console.error("Error creating invoice:", error);
       return { data: null, error };
     }
   };
+
+  const getItemsForInvoice = useCallback(async (invoiceId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from("invoice_items")
+        .select("*")
+        .eq("invoice_id", invoiceId)
+        .order("created_at", { ascending: true });
+
+      if (error) throw error;
+
+      return data || [];
+    } catch (error) {
+      console.error("Error fetching invoice items:", error);
+      return [];
+    }
+  }, []);
 
   const updateInvoiceStatus = async (
     invoiceId: string,
@@ -118,5 +167,6 @@ export const useInvoices = (statusFilter?: InvoiceStatus | "all") => {
     refetch: fetchInvoices,
     createInvoice,
     updateInvoiceStatus,
+    getItemsForInvoice,
   };
 };

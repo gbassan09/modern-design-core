@@ -131,19 +131,22 @@ const NewExpenseScreen = () => {
         imageUrl = await uploadImage(selectedFile, user.id);
       }
 
-      const { error } = await createInvoice({
-        supplier,
-        cnpj: cnpj || null,
-        description: description || null,
-        total_value: parseFloat(totalValue.replace(",", ".")),
-        tax_value: taxValue ? parseFloat(taxValue.replace(",", ".")) : null,
-        invoice_date: invoiceDate || null,
-        due_date: dueDate || null,
-        category: category as any,
-        items: items.length > 0 ? JSON.parse(JSON.stringify(items)) : null,
-        image_url: imageUrl,
-        raw_ocr_data: null,
-      });
+      const { error } = await createInvoice(
+        {
+          supplier,
+          cnpj: cnpj || null,
+          description: description || null,
+          total_value: parseFloat(totalValue.replace(",", ".")),
+          tax_value: taxValue ? parseFloat(taxValue.replace(",", ".")) : null,
+          invoice_date: invoiceDate || null,
+          due_date: dueDate || null,
+          category: category as any,
+          items: items.length > 0 ? JSON.parse(JSON.stringify(items)) : null,
+          image_url: imageUrl,
+          raw_ocr_data: null,
+        },
+        items // Pass items to be saved individually
+      );
 
       if (error) throw error;
 

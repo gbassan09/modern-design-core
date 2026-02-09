@@ -1,8 +1,5 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import * as pdfjsLib from "pdfjs-dist";
-
-// Configure PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 export interface ParsedExpense {
   description: string;
@@ -21,6 +18,11 @@ export interface ParsedStatement {
 export const usePDFParser = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Configure PDF.js worker
+    pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+  }, []);
 
   const extractTextFromPDF = useCallback(async (file: File): Promise<string> => {
     const arrayBuffer = await file.arrayBuffer();
@@ -110,43 +112,94 @@ export const usePDFParser = () => {
     // Extract individual expenses/transactions
     // Common pattern: date + description + value
     // E.g., "15/01/2024 UBER TRIP 45,00"
-    const linePattern = /(\d{2}[\/\-]\d{2}(?:[\/\-]\d{2,4})?)\s+(.+?)\s+(?:R?\$?\s*)?([\d.,]+)(?:\s|$)/g;
+    const standardLinePattern = /(\d{2}[\/\-]\d{2}(?:[\/\-]\d{2,4})?)\s+(.+?)\s+(?:R?\$?\s*)?(\d+[.,]\d{2,})(?:\s|$)/g;
+    // Nubank pattern: DD MMM Description Value (e.g. "15 FEV Uber 19,90")
+    const nubankLinePattern = /(\d{2})\s+(JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)\s+(.+?)\s+(?:R?\$?\s*)?(\d+[.,]\d{2,})(?:\s|$)/gi;
     
     const lines = text.split("\n");
+    const shouldInclude = (desc: string) => {
+      const lower = desc.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      if (lower.length <= 2) return false;
+      if (lower.includes("periodo vigente")) return false;
+      if (lower.includes("emissao e envio")) return false;
+      if (lower.includes("total da fatura")) return false;
+      if (lower.includes("saldo anterior")) return false;
+      if (lower.includes("pagamento")) return false;
+      if (lower.includes("credito")) return false;
+      if (lower.includes("vencimento")) return false;
+      if (lower.includes("fechamento")) return false;
+      if (lower.includes("obrigado")) return false;
+      if (lower.includes("autenticacao")) return false;
+      if (/^(de|a)\s+\d{2}\s+(jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)\b/.test(lower)) return false;
+      return true;
+    };
     for (const line of lines) {
-      const expenseMatch = linePattern.exec(line);
-      if (expenseMatch) {
-        const dateStr = expenseMatch[1];
-        const description = expenseMatch[2].trim();
-        const valueStr = expenseMatch[3]
-          .replace(/\./g, "")
-          .replace(",", ".");
-        const value = parseFloat(valueStr);
+      // Find all matches in the page text (treated as one line)
+      
+      // 1. Try Standard Pattern
+      let standardMatch;
+      while ((standardMatch = standardLinePattern.exec(line)) !== null) {
+        const dateStr = standardMatch[1];
+        const description = standardMatch[2].trim();
+        const valueStr = standardMatch[3];
+        
+        // Parse standard date
+        const dateParts = dateStr.split(/[\/\-]/);
+        if (dateParts.length >= 2) {
+          const day = parseInt(dateParts[0]);
+          const month = parseInt(dateParts[1]);
+          let year = dateParts[2] ? parseInt(dateParts[2]) : (result.periodYear || new Date().getFullYear());
+          if (year < 100) year += 2000;
+          
+          if (day >= 1 && day <= 31 && month >= 1 && month <= 12) {
+            const parsedDate = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+             const value = parseFloat(valueStr.replace(/\./g, "").replace(",", "."));
 
-        if (!isNaN(value) && value > 0 && description.length > 2) {
-          // Parse date
-          let parsedDate: string | null = null;
-          const dateParts = dateStr.split(/[\/\-]/);
-          if (dateParts.length >= 2) {
-            const day = parseInt(dateParts[0]);
-            const month = parseInt(dateParts[1]);
-            let year = dateParts[2] ? parseInt(dateParts[2]) : new Date().getFullYear();
-            if (year < 100) year += 2000;
-            
-            if (day >= 1 && day <= 31 && month >= 1 && month <= 12) {
-              parsedDate = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+            if (!isNaN(value) && value > 0 && description.length > 2) {
+              if (shouldInclude(description)) {
+                result.expenses.push({
+                  description,
+                  value,
+                  date: parsedDate,
+                });
+              }
             }
           }
-
-          result.expenses.push({
-            description,
-            value,
-            date: parsedDate,
-          });
         }
       }
-      linePattern.lastIndex = 0;
+
+      // 2. Try Nubank Pattern
+      let nubankMatch;
+      while ((nubankMatch = nubankLinePattern.exec(line)) !== null) {
+        const day = parseInt(nubankMatch[1]);
+        const monthStr = nubankMatch[2].toLowerCase();
+        const description = nubankMatch[3].trim();
+        const valueStr = nubankMatch[4];
+
+        if (monthNames[monthStr]) {
+          const month = monthNames[monthStr];
+          const year = result.periodYear || new Date().getFullYear();
+          const parsedDate = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+          const value = parseFloat(valueStr.replace(/\./g, "").replace(",", "."));
+
+          if (!isNaN(value) && value > 0 && description.length > 2) {
+             if (shouldInclude(description)) {
+                result.expenses.push({
+                  description,
+                  value,
+                  date: parsedDate,
+                });
+             }
+          }
+        }
+      }
     }
+
+    // Sort expenses by date
+    result.expenses.sort((a, b) => {
+      if (!a.date || !b.date) return 0;
+      return new Date(a.date).getTime() - new Date(b.date).getTime();
+    });
 
     return result;
   }, []);
